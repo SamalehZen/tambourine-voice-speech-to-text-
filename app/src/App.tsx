@@ -43,7 +43,7 @@ function Sidebar({
 					styles={{
 						root: {
 							borderRadius: 8,
-							"&[data-active]": {
+							"&[dataActive]": {
 								backgroundColor: "var(--bg-elevated)",
 							},
 						},
@@ -61,7 +61,7 @@ function Sidebar({
 					styles={{
 						root: {
 							borderRadius: 8,
-							"&[data-active]": {
+							"&[dataActive]": {
 								backgroundColor: "var(--bg-elevated)",
 							},
 						},
