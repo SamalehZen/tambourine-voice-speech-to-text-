@@ -70,10 +70,12 @@ export function DeviceSelector() {
 
 	const selectData = [
 		{ value: "default", label: "System Default" },
-		...devices.map((device) => ({
-			value: device.deviceId,
-			label: device.label,
-		})),
+		...devices
+			.filter((device) => device.deviceId !== "default")
+			.map((device) => ({
+				value: device.deviceId,
+				label: device.label,
+			})),
 	];
 
 	return (
