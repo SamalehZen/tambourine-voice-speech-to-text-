@@ -1,4 +1,12 @@
-import { Alert, Kbd, NavLink, Switch, Text, Title } from "@mantine/core";
+import {
+	Alert,
+	Kbd,
+	NavLink,
+	Switch,
+	Text,
+	Textarea,
+	Title,
+} from "@mantine/core";
 import { AlertCircle, Home, Mic, Settings } from "lucide-react";
 import { useState } from "react";
 import { DeviceSelector } from "./components/DeviceSelector";
@@ -115,6 +123,31 @@ function InstructionsCard() {
 	);
 }
 
+function DictationTestArea() {
+	return (
+		<div className="settings-section animate-in animate-in-delay-1">
+			<h3 className="settings-section-title">Test Dictation</h3>
+			<div className="settings-card">
+				<Textarea
+					placeholder="Click here and use the hotkeys above to test dictation..."
+					minRows={4}
+					autosize
+					styles={{
+						input: {
+							backgroundColor: "var(--bg-elevated)",
+							borderColor: "var(--border-default)",
+							color: "var(--text-primary)",
+							"&:focus": {
+								borderColor: "var(--accent-primary)",
+							},
+						},
+					}}
+				/>
+			</div>
+		</div>
+	);
+}
+
 function HomeView() {
 	return (
 		<div className="main-content">
@@ -128,6 +161,8 @@ function HomeView() {
 			</header>
 
 			<InstructionsCard />
+
+			<DictationTestArea />
 
 			<HistoryFeed />
 		</div>

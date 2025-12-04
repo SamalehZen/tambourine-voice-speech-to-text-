@@ -61,34 +61,58 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
 
 	startRecording: () => {
 		const { state, client } = get();
+		console.log(
+			"[Store] startRecording called, state:",
+			state,
+			"client:",
+			!!client,
+		);
 		if (state !== "idle" || !client) {
+			console.log("[Store] startRecording rejected - wrong state or no client");
 			return false;
 		}
 
 		// Signal server to reset buffer and enable mic
 		try {
+			console.log(
+				"[Store] Sending start-recording message and enabling mic...",
+			);
 			client.sendClientMessage("start-recording", {});
 			client.enableMic(true);
+			console.log("[Store] Mic enabled, transitioning to recording state");
 			set({ state: "recording" });
 			return true;
-		} catch {
+		} catch (error) {
+			console.error("[Store] Error starting recording:", error);
 			return false;
 		}
 	},
 
 	stopRecording: () => {
 		const { state, client } = get();
+		console.log(
+			"[Store] stopRecording called, state:",
+			state,
+			"client:",
+			!!client,
+		);
 		if (state !== "recording" || !client) {
+			console.log("[Store] stopRecording rejected - wrong state or no client");
 			return false;
 		}
 
 		// Disable mic and tell server to flush buffer
 		try {
+			console.log(
+				"[Store] Disabling mic and sending stop-recording message...",
+			);
 			client.enableMic(false);
 			client.sendClientMessage("stop-recording", {});
+			console.log("[Store] Transitioning to processing state");
 			set({ state: "processing" });
 			return true;
-		} catch {
+		} catch (error) {
+			console.error("[Store] Error stopping recording:", error);
 			return false;
 		}
 	},

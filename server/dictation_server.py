@@ -14,7 +14,7 @@ from typing import Any
 
 import typer
 from loguru import logger
-from pipecat.frames.frames import Frame, OutputTransportMessageFrame
+from pipecat.frames.frames import Frame, InputAudioRawFrame, OutputTransportMessageFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
@@ -34,6 +34,30 @@ from utils.logger import configure_logging
 
 # CLI app
 app = typer.Typer(help="Voice dictation WebSocket server")
+
+
+class DebugFrameProcessor(FrameProcessor):
+    """Debug processor that logs all incoming frames for troubleshooting."""
+
+    def __init__(self, name: str = "debug", **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._name = name
+        self._audio_frame_count = 0
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
+        await super().process_frame(frame, direction)
+
+        if isinstance(frame, InputAudioRawFrame):
+            self._audio_frame_count += 1
+            if self._audio_frame_count <= 5 or self._audio_frame_count % 100 == 0:
+                logger.info(
+                    f"[{self._name}] Audio frame #{self._audio_frame_count}: "
+                    f"{len(frame.audio)} bytes, {frame.sample_rate}Hz, {frame.num_channels}ch"
+                )
+        else:
+            logger.info(f"[{self._name}] Frame: {type(frame).__name__}")
+
+        await self.push_frame(frame, direction)
 
 
 class TextResponseProcessor(FrameProcessor):
@@ -87,6 +111,7 @@ async def run_server(host: str, port: int, settings: Settings) -> None:
     llm_service = create_llm_service(settings)
 
     # Initialize processors
+    debug_input = DebugFrameProcessor(name="input")
     transcription_buffer = TranscriptionBufferProcessor()
     transcription_to_llm = TranscriptionToLLMConverter()
     llm_response_converter = LLMResponseToRTVIConverter()
@@ -100,6 +125,7 @@ async def run_server(host: str, port: int, settings: Settings) -> None:
     pipeline = Pipeline(
         [
             transport.input(),  # Audio from Electron client
+            debug_input,  # Debug: log all incoming frames
             stt_service,  # Speech-to-text (produces partial transcriptions)
             transcription_buffer,  # Buffer until user stops speaking
             transcription_to_llm,  # Convert transcription to LLM context

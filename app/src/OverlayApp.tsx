@@ -6,7 +6,10 @@ import {
 	usePipecatClient,
 } from "@pipecat-ai/client-react";
 import { ThemeProvider, UserAudioComponent } from "@pipecat-ai/voice-ui-kit";
-import { WebSocketTransport } from "@pipecat-ai/websocket-transport";
+import {
+	ProtobufFrameSerializer,
+	WebSocketTransport,
+} from "@pipecat-ai/websocket-transport";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	useAddHistoryEntry,
@@ -100,12 +103,18 @@ function RecordingControl() {
 
 	// Handle start/stop recording from hotkeys
 	const onStartRecording = useCallback(() => {
-		startRecording();
+		console.log("[Recording] Starting recording...");
+		const success = startRecording();
+		console.log("[Recording] Start recording result:", success);
 	}, [startRecording]);
 
 	const onStopRecording = useCallback(() => {
+		console.log("[Recording] Stopping recording...");
 		if (stopRecording()) {
+			console.log("[Recording] Stop recording success, waiting for response");
 			startResponseTimeout();
+		} else {
+			console.log("[Recording] Stop recording failed");
 		}
 	}, [stopRecording, startResponseTimeout]);
 
@@ -132,10 +141,12 @@ function RecordingControl() {
 		if (!client) return;
 
 		const onConnected = () => {
+			console.log("[Pipecat] Connected to server");
 			handleConnected();
 		};
 
 		const onDisconnected = () => {
+			console.log("[Pipecat] Disconnected from server");
 			handleDisconnected();
 
 			// Attempt reconnection after delay
@@ -153,6 +164,7 @@ function RecordingControl() {
 		};
 
 		const onServerMessage = async (message: unknown) => {
+			console.log("[Pipecat] Server message:", message);
 			if (isTranscriptMessage(message)) {
 				clearResponseTimeout();
 				await typeTextMutation.mutateAsync(message.text);
@@ -161,14 +173,64 @@ function RecordingControl() {
 			}
 		};
 
+		const onMicUpdated = (mic: MediaDeviceInfo) => {
+			console.log("[Pipecat] Mic updated:", mic.label, mic.deviceId);
+		};
+
+		const onTrackStarted = (track: MediaStreamTrack) => {
+			console.log("[Pipecat] Track started:", track.kind, track.label);
+		};
+
+		const onUserStartedSpeaking = () => {
+			console.log("[Pipecat] User started speaking");
+		};
+
+		const onUserStoppedSpeaking = () => {
+			console.log("[Pipecat] User stopped speaking");
+		};
+
+		const onLocalAudioLevel = (level: number) => {
+			if (level > 0.01) {
+				console.log("[Pipecat] Local audio level:", level.toFixed(3));
+			}
+		};
+
+		const onError = (error: unknown) => {
+			console.error("[Pipecat] Error:", error);
+		};
+
+		const onDeviceError = (error: unknown) => {
+			console.error("[Pipecat] Device error:", error);
+		};
+
+		const onTransportStateChanged = (transportState: unknown) => {
+			console.log("[Pipecat] Transport state changed:", transportState);
+		};
+
 		client.on(RTVIEvent.Connected, onConnected);
 		client.on(RTVIEvent.Disconnected, onDisconnected);
 		client.on(RTVIEvent.ServerMessage, onServerMessage);
+		client.on(RTVIEvent.MicUpdated, onMicUpdated);
+		client.on(RTVIEvent.TrackStarted, onTrackStarted);
+		client.on(RTVIEvent.UserStartedSpeaking, onUserStartedSpeaking);
+		client.on(RTVIEvent.UserStoppedSpeaking, onUserStoppedSpeaking);
+		client.on(RTVIEvent.LocalAudioLevel, onLocalAudioLevel);
+		client.on(RTVIEvent.Error, onError);
+		client.on(RTVIEvent.DeviceError, onDeviceError);
+		client.on(RTVIEvent.TransportStateChanged, onTransportStateChanged);
 
 		return () => {
 			client.off(RTVIEvent.Connected, onConnected);
 			client.off(RTVIEvent.Disconnected, onDisconnected);
 			client.off(RTVIEvent.ServerMessage, onServerMessage);
+			client.off(RTVIEvent.MicUpdated, onMicUpdated);
+			client.off(RTVIEvent.TrackStarted, onTrackStarted);
+			client.off(RTVIEvent.UserStartedSpeaking, onUserStartedSpeaking);
+			client.off(RTVIEvent.UserStoppedSpeaking, onUserStoppedSpeaking);
+			client.off(RTVIEvent.LocalAudioLevel, onLocalAudioLevel);
+			client.off(RTVIEvent.Error, onError);
+			client.off(RTVIEvent.DeviceError, onDeviceError);
+			client.off(RTVIEvent.TransportStateChanged, onTransportStateChanged);
 		};
 	}, [
 		client,
@@ -227,7 +289,9 @@ export default function OverlayApp() {
 	const { data: settings } = useSettings();
 
 	useEffect(() => {
-		const transport = new WebSocketTransport();
+		const transport = new WebSocketTransport({
+			serializer: new ProtobufFrameSerializer(),
+		});
 		const pipecatClient = new PipecatClient({
 			transport,
 			enableMic: false,
