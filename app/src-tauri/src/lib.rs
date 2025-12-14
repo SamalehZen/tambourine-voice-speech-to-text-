@@ -253,55 +253,6 @@ pub fn handle_shortcut_event(app: &AppHandle, shortcut: &Shortcut, event: &Short
     }
 }
 
-/// Initial settings for shortcut registration (before store plugin is available)
-#[cfg(desktop)]
-struct InitialShortcutSettings {
-    toggle_hotkey: HotkeyConfig,
-    hold_hotkey: HotkeyConfig,
-    paste_last_hotkey: HotkeyConfig,
-}
-
-/// Load initial shortcut settings from the store file (used before app is fully set up)
-#[cfg(desktop)]
-fn load_initial_settings() -> InitialShortcutSettings {
-    let app_data_dir = dirs::data_dir()
-        .map(|p| p.join("com.tambourine.voice-dictation"))
-        .unwrap_or_default();
-    let settings_path = app_data_dir.join("settings.json");
-
-    // The store plugin uses a JSON object with keys at the top level
-    if settings_path.exists() {
-        if let Ok(content) = std::fs::read_to_string(&settings_path) {
-            if let Ok(store_data) = serde_json::from_str::<serde_json::Value>(&content) {
-                let toggle_hotkey = store_data
-                    .get("toggle_hotkey")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok())
-                    .unwrap_or_else(HotkeyConfig::default_toggle);
-                let hold_hotkey = store_data
-                    .get("hold_hotkey")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok())
-                    .unwrap_or_else(HotkeyConfig::default_hold);
-                let paste_last_hotkey = store_data
-                    .get("paste_last_hotkey")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok())
-                    .unwrap_or_else(HotkeyConfig::default_paste_last);
-
-                return InitialShortcutSettings {
-                    toggle_hotkey,
-                    hold_hotkey,
-                    paste_last_hotkey,
-                };
-            }
-        }
-    }
-
-    InitialShortcutSettings {
-        toggle_hotkey: HotkeyConfig::default_toggle(),
-        hold_hotkey: HotkeyConfig::default_hold(),
-        paste_last_hotkey: HotkeyConfig::default_paste_last(),
-    }
-}
-
 /// Check if audio mute is supported on this platform
 #[tauri::command]
 fn is_audio_mute_supported() -> bool {
@@ -355,6 +306,13 @@ pub fn run() {
             if let Some(audio_mute_manager) = AudioMuteManager::new() {
                 app.manage(audio_mute_manager);
             }
+
+            // Register shortcuts from store (now that store plugin is available)
+            #[cfg(desktop)]
+            {
+                register_initial_shortcuts(app.handle())?;
+            }
+
             // Create overlay window
             let overlay = tauri::WebviewWindowBuilder::new(
                 app,
@@ -449,6 +407,12 @@ fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             "quit" => {
+                // Emit disconnect request to frontend before exiting
+                if let Some(window) = app.get_webview_window("overlay") {
+                    let _ = window.emit("request-disconnect", ());
+                }
+                // Give frontend time to disconnect gracefully
+                std::thread::sleep(std::time::Duration::from_millis(500));
                 app.exit(0);
             }
             _ => {}
@@ -478,32 +442,43 @@ fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(desktop)]
 fn build_global_shortcut_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
-    // Load settings to get configured hotkeys
-    let initial_settings = load_initial_settings();
+    // Just initialize the plugin - shortcuts will be registered in setup() after store is available
+    tauri_plugin_global_shortcut::Builder::new().build()
+}
 
-    // Create shortcuts from settings (with fallbacks to defaults)
-    let toggle_shortcut = initial_settings
-        .toggle_hotkey
-        .to_shortcut_or_default(HotkeyConfig::default_toggle);
-    let hold_shortcut = initial_settings
-        .hold_hotkey
-        .to_shortcut_or_default(HotkeyConfig::default_hold);
-    let paste_last_shortcut = initial_settings
-        .paste_last_hotkey
-        .to_shortcut_or_default(HotkeyConfig::default_paste_last);
+/// Register shortcuts from store settings (called from setup() after store plugin is available)
+#[cfg(desktop)]
+fn register_initial_shortcuts(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+
+    // Read hotkeys from store with defaults
+    let toggle_hotkey: HotkeyConfig =
+        get_setting_from_store(app, "toggle_hotkey", HotkeyConfig::default_toggle());
+    let hold_hotkey: HotkeyConfig =
+        get_setting_from_store(app, "hold_hotkey", HotkeyConfig::default_hold());
+    let paste_last_hotkey: HotkeyConfig =
+        get_setting_from_store(app, "paste_last_hotkey", HotkeyConfig::default_paste_last());
+
+    // Convert to shortcuts with validation (fall back to defaults if invalid)
+    let toggle_shortcut = toggle_hotkey.to_shortcut_or_default(HotkeyConfig::default_toggle);
+    let hold_shortcut = hold_hotkey.to_shortcut_or_default(HotkeyConfig::default_hold);
+    let paste_last_shortcut =
+        paste_last_hotkey.to_shortcut_or_default(HotkeyConfig::default_paste_last);
 
     log::info!(
         "Registering shortcuts - Toggle: {}, Hold: {}, PasteLast: {}",
-        initial_settings.toggle_hotkey.to_shortcut_string(),
-        initial_settings.hold_hotkey.to_shortcut_string(),
-        initial_settings.paste_last_hotkey.to_shortcut_string()
+        toggle_hotkey.to_shortcut_string(),
+        hold_hotkey.to_shortcut_string(),
+        paste_last_hotkey.to_shortcut_string()
     );
 
-    tauri_plugin_global_shortcut::Builder::new()
-        .with_shortcuts([toggle_shortcut, hold_shortcut, paste_last_shortcut])
-        .expect("Failed to register global shortcuts - check if another instance is running")
-        .with_handler(|app, shortcut, event| {
+    let shortcuts: Vec<Shortcut> = vec![toggle_shortcut, hold_shortcut, paste_last_shortcut];
+
+    app.global_shortcut()
+        .on_shortcuts(shortcuts, |app, shortcut, event| {
             handle_shortcut_event(app, shortcut, &event);
-        })
-        .build()
+        })?;
+
+    log::info!("Shortcuts registered successfully");
+    Ok(())
 }

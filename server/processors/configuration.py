@@ -6,6 +6,7 @@ configuration of the pipeline without global state or REST API endpoints.
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any, Literal
 
 from loguru import logger
@@ -91,6 +92,10 @@ class ConfigurationProcessor(FrameProcessor):
         self._stt_services = stt_services
         self._llm_services = llm_services
         self._pipeline_started = False
+        # True only after StartFrame has propagated through the entire pipeline
+        self._pipeline_fully_ready = False
+        # Queue for config messages received before pipeline is fully ready
+        self._pending_config_messages: list[dict[str, Any]] = []
 
         # Track current providers for logging
         self._current_stt_provider: STTProviderId | None = None
@@ -107,9 +112,21 @@ class ConfigurationProcessor(FrameProcessor):
 
         if isinstance(frame, StartFrame):
             self._pipeline_started = True
-            logger.info("Pipeline started - ready to accept configuration")
+            logger.info("Pipeline started - waiting for full propagation")
         elif isinstance(frame, InputTransportMessageFrame):
             logger.debug(f"InputTransportMessageFrame received: {frame.message}")
+            # Queue config messages if pipeline is not fully ready yet
+            if not self._pipeline_fully_ready:
+                msg_type, _ = self._extract_message_type_and_data(frame.message)
+                if msg_type in {
+                    "set-stt-provider",
+                    "set-llm-provider",
+                    "set-prompt-sections",
+                    "set-stt-timeout",
+                }:
+                    logger.debug(f"Queuing config message: {msg_type} (pipeline not fully ready)")
+                    self._pending_config_messages.append(frame.message)
+                    return
             # Handle configuration messages from client
             handled = await self._handle_config_message(frame.message)
             if handled:
@@ -117,6 +134,18 @@ class ConfigurationProcessor(FrameProcessor):
                 return
 
         await self.push_frame(frame, direction)
+
+        # After pushing StartFrame downstream, yield to allow it to propagate
+        # through the entire pipeline, then process any queued config messages
+        if isinstance(frame, StartFrame):
+            # Yield control to allow StartFrame to propagate through all processors
+            await asyncio.sleep(0)
+            self._pipeline_fully_ready = True
+            logger.info("Pipeline fully ready - processing queued configuration messages")
+            # Process any config messages that arrived before pipeline was ready
+            for msg in self._pending_config_messages:
+                await self._handle_config_message(msg)
+            self._pending_config_messages.clear()
 
     def _extract_message_type_and_data(
         self, message: dict[str, Any] | Any
@@ -151,10 +180,7 @@ class ConfigurationProcessor(FrameProcessor):
             payload = client_msg.data.d or {}
             return msg_type, payload
         except ValidationError:
-            pass
-
-        # Fallback: direct message format (for backwards compatibility)
-        return message.get("type"), message.get("data", {})
+            return None, {}
 
     async def _handle_config_message(self, message: dict[str, Any]) -> bool:
         """Handle a potential configuration message.
@@ -212,7 +238,7 @@ class ConfigurationProcessor(FrameProcessor):
             )
             return
 
-        if not self._pipeline_started:
+        if not self._pipeline_fully_ready:
             await self._send_config_error("stt-provider", "Pipeline not ready - please try again")
             return
 
@@ -249,7 +275,7 @@ class ConfigurationProcessor(FrameProcessor):
             )
             return
 
-        if not self._pipeline_started:
+        if not self._pipeline_fully_ready:
             await self._send_config_error("llm-provider", "Pipeline not ready - please try again")
             return
 

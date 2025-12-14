@@ -26,7 +26,6 @@ from services.provider_registry import (
 if TYPE_CHECKING:
     from config.settings import Settings
 
-# Re-export for backward compatibility
 __all__ = [
     "LLMProviderId",
     "STTProviderId",
@@ -34,8 +33,6 @@ __all__ = [
     "create_all_available_stt_services",
     "create_llm_service",
     "create_stt_service",
-    "get_available_llm_providers",
-    "get_available_stt_providers",
     "get_llm_provider_labels",
     "get_stt_provider_labels",
 ]

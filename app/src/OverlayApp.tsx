@@ -9,6 +9,7 @@ import {
 import { SmallWebRTCTransport } from "@pipecat-ai/small-webrtc-transport";
 import { ThemeProvider, UserAudioComponent } from "@pipecat-ai/voice-ui-kit";
 import { useQueryClient } from "@tanstack/react-query";
+import { listen } from "@tauri-apps/api/event";
 import { useDrag } from "@use-gesture/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
@@ -197,6 +198,40 @@ function RecordingControl() {
 			unlisten?.();
 		};
 	}, [queryClient]);
+
+	// Listen for disconnect request from Rust (triggered on app quit)
+	useEffect(() => {
+		let unlisten: (() => void) | undefined;
+
+		const setup = async () => {
+			unlisten = await listen("request-disconnect", async () => {
+				console.log("[Pipecat] Received disconnect request from Rust");
+				if (client) {
+					try {
+						await client.disconnect();
+						console.log("[Pipecat] Disconnected gracefully");
+					} catch (error) {
+						console.error("[Pipecat] Disconnect error:", error);
+					}
+				}
+			});
+		};
+
+		setup();
+
+		return () => {
+			unlisten?.();
+		};
+	}, [client]);
+
+	// Cleanup on window close/beforeunload
+	useEffect(() => {
+		const handleBeforeUnload = () => {
+			client?.disconnect();
+		};
+		window.addEventListener("beforeunload", handleBeforeUnload);
+		return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+	}, [client]);
 
 	// Connection event handler
 	useRTVIClientEvent(

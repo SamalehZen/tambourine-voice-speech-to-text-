@@ -185,7 +185,7 @@ uv run python main.py --verbose
 cd app
 
 # Development
-pnpm check         # Run all checks (lint + typecheck + knip + cargo)
+pnpm check         # Run all checks (lint + typecheck + knip + test + cargo)
 pnpm dev           # Start Tauri app in dev mode
 
 # Production Build
