@@ -267,17 +267,30 @@ export function useClearHistory() {
 
 // Config API queries and mutations (FastAPI server)
 export function useDefaultSections() {
+	const { data: serverUrl } = useServerUrl();
+
 	return useQuery({
-		queryKey: ["defaultSections"],
-		queryFn: () => configAPI.getDefaultSections(),
+		queryKey: ["defaultSections", serverUrl],
+		queryFn: () => {
+			if (!serverUrl) {
+				throw new Error("Server URL not available");
+			}
+			return configAPI.getDefaultSections(serverUrl);
+		},
 		staleTime: Number.POSITIVE_INFINITY, // Default prompts never change
 		retry: false, // Don't retry if server not available
+		enabled: !!serverUrl, // Only fetch when server URL is available
 	});
 }
 
 // Provider queries - data comes from RTVI message via Tauri event
 
-export function useAvailableProviders() {
+/**
+ * Hook to set up the available providers event listener.
+ * Call this from a component that stays mounted (like App.tsx) to ensure
+ * the listener is always active and data is cached properly.
+ */
+export function useAvailableProvidersListener() {
 	const queryClient = useQueryClient();
 
 	// Listen for provider data from overlay window (relayed from server via RTVI)
@@ -293,7 +306,14 @@ export function useAvailableProviders() {
 			unlistenPromise.then((unlisten) => unlisten());
 		};
 	}, [queryClient]);
+}
 
+/**
+ * Hook to read available providers from the cache.
+ * The data is populated by useAvailableProvidersListener which should be
+ * called from a parent component that stays mounted.
+ */
+export function useAvailableProviders() {
 	return useQuery<AvailableProvidersData | null>({
 		queryKey: ["availableProviders"],
 		queryFn: () => Promise.resolve(null), // No initial fetch, data comes from event
@@ -332,6 +352,20 @@ export function useUpdateSTTTimeout() {
 			tauriAPI.updateSTTTimeout(timeoutSeconds),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["settings"] });
+		},
+	});
+}
+
+// Server URL mutation
+export function useUpdateServerUrl() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (url: string) => tauriAPI.updateServerUrl(url),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["settings"] });
+			queryClient.invalidateQueries({ queryKey: ["serverUrl"] });
+			// Notify other windows about settings change
+			tauriAPI.emitSettingsChanged();
 		},
 	});
 }
