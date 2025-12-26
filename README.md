@@ -64,16 +64,13 @@ Open-source alternative to [Wispr Flow](https://wisprflow.ai) and [Superwhisper]
 - **Real-time Speech-to-Text** - Fast transcription with configurable STT providers
 - **LLM Text Formatting** - Removes filler words, adds punctuation using configurable LLM
 - **Customizable Prompts** - Edit formatting rules, enable advanced features, add personal dictionary
-- **Automatic Typing** - Pastes cleaned text at cursor position
-- **Recording Overlay** - Visual indicator in bottom-right corner during dictation
-- **System Tray Integration** - Click to show/hide, right-click menu
+- **In-App Provider Selection** - Switch STT and LLM providers without restarting
+- **Automatic Typing** - Input text directly at focused position
+- **Recording Overlay** - Floating visual indicator
 - **Transcription History** - View and copy previous dictations
 - **Paste Last Transcription** - Re-type previous dictation with `Ctrl+Alt+.`
-- **Customizable Hotkeys** - Configure shortcuts to your preference
-- **Device Selection** - Choose your preferred microphone
-- **Sound Feedback** - Audio cues for recording start/stop
 - **Auto-Mute Audio** - Automatically mute system audio while dictating (Windows/macOS)
-- **In-App Provider Selection** - Switch STT and LLM providers without restarting
+- **Misc.** - System try integration, microphone selection, sound feedback, configure hotkeys
 
 ## Planned Features
 

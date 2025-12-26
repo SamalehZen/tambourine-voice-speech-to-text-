@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tambourine - Build Your Own Voice Interface</title>
+    <meta name="description"
+        content="An open-source platform for AI voice dictation that you can customize and personalize to your exact needs.">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Tambourine - Build Your Own Voice Interface">
+    <meta property="og:description"
+        content="An open-source platform for AI voice dictation that you can customize and personalize to your exact needs.">
+    <meta property="og:image" content="./assets/windows_notepad.gif">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Tambourine - Build Your Own Voice Interface">
+    <meta name="twitter:description"
+        content="An open-source platform for AI voice dictation that you can customize and personalize to your exact needs.">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="./assets/icon.png">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-primary: #000000;
+            --bg-elevated: #0a0a0a;
+            --bg-card: #111111;
+            --bg-card-hover: #161616;
+            --border-subtle: #1a1a1a;
+            --border-default: #252525;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --text-muted: #5a5a5a;
+            --accent: #e0e0e0;
+            --accent-dim: rgba(255, 255, 255, 0.06);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            overflow-x: hidden;
+        }
+
+        /* Noise texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.015;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            z-index: 9999;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            padding: 20px 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .nav-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .logo svg {
+            width: 32px;
+            height: 32px;
+        }
+
+        .logo-text {
+            font-family: 'Instrument Serif', serif;
+            font-weight: 400;
+            font-size: 24px;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-link:hover {
+            color: var(--text-primary);
+            background: var(--accent-dim);
+        }
+
+        .nav-link svg,
+        .nav-link .lucide {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Lucide icon sizing */
+        .lucide {
+            width: 24px;
+            height: 24px;
+            stroke-width: 2;
+        }
+
+        .btn .lucide {
+            width: 20px;
+            height: 20px;
+        }
+
+        .platform-icon .lucide {
+            width: 24px;
+            height: 24px;
+        }
+
+        .feature-icon .lucide {
+            width: 20px;
+            height: 20px;
+            color: var(--text-secondary);
+        }
+
+        .community-badge .lucide {
+            width: 16px;
+            height: 16px;
+        }
+
+        .nav-link.primary {
+            background: var(--text-primary);
+            color: var(--bg-primary);
+        }
+
+        .nav-link.primary:hover {
+            background: var(--accent);
+            transform: translateY(-1px);
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 140px 0 80px;
+            position: relative;
+        }
+
+        /* Waveform background */
+        .hero-bg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            max-width: 900px;
+            height: 300px;
+            opacity: 0.03;
+            pointer-events: none;
+        }
+
+        .wave-line {
+            fill: none;
+            stroke: var(--text-primary);
+            stroke-width: 2;
+            stroke-linecap: round;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: 100px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+            animation: fadeInUp 0.6s ease forwards;
+        }
+
+        .hero-badge::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse 2s ease infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.4;
+            }
+        }
+
+        .hero h1 {
+            font-family: 'Instrument Serif', serif;
+            font-size: clamp(40px, 8vw, 72px);
+            font-weight: 400;
+            line-height: 1.1;
+            letter-spacing: -0.01em;
+            margin-bottom: 24px;
+            animation: fadeInUp 0.6s ease 0.1s forwards;
+            opacity: 0;
+        }
+
+        .hero h1 span {
+            display: block;
+            color: var(--text-primary);
+        }
+
+        .hero-subtitle {
+            font-size: clamp(16px, 2.5vw, 20px);
+            color: var(--text-secondary);
+            max-width: 560px;
+            margin: 0 auto 40px;
+            line-height: 1.6;
+            animation: fadeInUp 0.6s ease 0.2s forwards;
+            opacity: 0;
+        }
+
+        .hero-ctas {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            animation: fadeInUp 0.6s ease 0.3s forwards;
+            opacity: 0;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 24px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+            text-decoration: none;
+            border-radius: 10px;
+            transition: all 0.25s ease;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .btn-primary {
+            background: var(--text-primary);
+            color: var(--bg-primary);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(255, 255, 255, 0.15);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-default);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-default);
+        }
+
+        /* Compatibility badges */
+        .hero-compat {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            margin-top: 32px;
+            flex-wrap: wrap;
+            animation: fadeInUp 0.6s ease 0.35s forwards;
+            opacity: 0;
+        }
+
+        .hero-compat span {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1;
+        }
+
+        .hero-compat .lucide,
+        .hero-compat svg {
+            width: 14px;
+            height: 14px;
+            flex-shrink: 0;
+        }
+
+        /* Demo visual */
+        .hero-demo {
+            margin-top: 48px;
+            animation: fadeInUp 0.6s ease 0.4s forwards;
+            opacity: 0;
+        }
+
+        .demo-wrapper {
+            position: relative;
+            max-width: 700px;
+            margin: 0 auto;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border-default);
+            background: var(--bg-card);
+        }
+
+        .demo-wrapper::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 40px;
+            background: var(--bg-elevated);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            padding-left: 16px;
+        }
+
+        .demo-wrapper::after {
+            content: '';
+            position: absolute;
+            top: 14px;
+            left: 16px;
+            width: 12px;
+            height: 12px;
+            background: #ff5f57;
+            border-radius: 50%;
+            box-shadow: 20px 0 0 #febc2e, 40px 0 0 #28c840;
+        }
+
+        .demo-wrapper img {
+            width: 100%;
+            display: block;
+            margin-top: 40px;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Section styling */
+        section {
+            padding: 120px 0;
+        }
+
+        .section-header {
+            text-align: center;
+            max-width: 600px;
+            margin: 0 auto 64px;
+        }
+
+        .section-label {
+            display: inline-block;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-secondary);
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            padding: 8px 16px;
+            border-radius: 100px;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-family: 'Instrument Serif', serif;
+            font-size: clamp(28px, 5vw, 40px);
+            font-weight: 400;
+            letter-spacing: -0.01em;
+            line-height: 1.2;
+            margin-bottom: 16px;
+        }
+
+        .section-subtitle {
+            font-size: 17px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* Platform section */
+        .platform-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        @media (max-width: 900px) {
+            .platform-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .platform-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 32px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .platform-card:hover {
+            border-color: var(--border-default);
+            transform: translateY(-4px);
+        }
+
+        .platform-icon {
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--accent-dim);
+            border-radius: 12px;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+        }
+
+        .platform-icon svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .platform-card h3 {
+            font-family: 'Instrument Serif', serif;
+            font-size: 20px;
+            font-weight: 400;
+            margin-bottom: 12px;
+            letter-spacing: 0;
+        }
+
+        .platform-card p {
+            font-size: 15px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* Features section */
+        .features {
+            background: var(--bg-elevated);
+            border-top: 1px solid var(--border-subtle);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 28px;
+            transition: all 0.25s ease;
+        }
+
+        .feature-card:hover {
+            border-color: var(--border-default);
+        }
+
+        .feature-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+
+        .feature-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--accent-dim);
+            border-radius: 10px;
+            flex-shrink: 0;
+        }
+
+        .feature-icon svg {
+            width: 20px;
+            height: 20px;
+            color: var(--text-secondary);
+        }
+
+        .feature-card h3 {
+            font-family: 'Instrument Serif', serif;
+            font-size: 18px;
+            font-weight: 400;
+            margin-bottom: 4px;
+        }
+
+        .feature-card p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .feature-example {
+            margin-top: 16px;
+            padding: 12px 16px;
+            background: var(--bg-primary);
+            border-radius: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .feature-example .highlight {
+            color: var(--text-secondary);
+        }
+
+        .feature-card.coming-soon {
+            position: relative;
+        }
+
+        .feature-card .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            background: var(--accent-dim);
+            border-radius: 100px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-left: auto;
+        }
+
+        /* Future section */
+        .future {
+            position: relative;
+        }
+
+        .future-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        @media (max-width: 900px) {
+            .future-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .future-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 28px;
+            position: relative;
+            transition: all 0.25s ease;
+        }
+
+        .future-card::after {
+            content: 'Coming Soon';
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            padding: 4px 10px;
+            background: var(--accent-dim);
+            border-radius: 100px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        .future-card:hover {
+            border-color: var(--border-default);
+        }
+
+        .future-card h3 {
+            font-family: 'Instrument Serif', serif;
+            font-size: 18px;
+            font-weight: 400;
+            margin-bottom: 8px;
+            padding-right: 80px;
+        }
+
+        .future-card p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* Community section */
+        .community {
+            text-align: center;
+        }
+
+        .community-content {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .community-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+        }
+
+        .community h2 {
+            font-family: 'Instrument Serif', serif;
+            font-size: clamp(28px, 5vw, 40px);
+            font-weight: 400;
+            letter-spacing: -0.01em;
+            margin-bottom: 16px;
+        }
+
+        .community p {
+            font-size: 17px;
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+            line-height: 1.6;
+        }
+
+        .community-ctas {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        /* Footer */
+        footer {
+            padding: 40px 0;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .footer-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .footer-left {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .footer-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .footer-logo svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .footer-links {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .footer-links a {
+            font-size: 14px;
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .footer-links a:hover {
+            color: var(--text-secondary);
+        }
+
+        .footer-right {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        /* Mobile adjustments */
+        @media (max-width: 640px) {
+            .nav-links {
+                display: none;
+            }
+
+            .hero {
+                padding: 120px 0 60px;
+            }
+
+            .hero-ctas {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .hero-ctas .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            section {
+                padding: 80px 0;
+            }
+
+            .footer-inner {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .footer-left {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav>
+        <div class="container nav-inner">
+            <a href="#" class="logo">
+                <svg viewBox="0 -24 480 480" fill="currentColor">
+                    <path
+                        d="M230.986755,289.073059 C210.233383,300.688568 188.942276,310.172607 166.173950,315.793335 C133.176422,323.939240 100.172661,325.088959 67.951645,312.382812 C50.932407,305.671356 37.964565,294.224976 33.314289,275.674530 C29.763798,261.511230 33.032742,247.830490 38.307205,234.694656 C47.399551,212.050507 62.548660,193.439941 78.883392,175.749191 C97.485817,155.602509 118.422501,138.059448 140.444244,121.808708 C146.059555,117.664932 152.161880,114.171448 158.110397,110.492310 C161.970383,108.104927 165.869980,108.171570 168.967560,111.701004 C172.138931,115.314529 171.409409,119.215775 168.403946,122.543785 C163.608093,127.854355 158.624985,132.998657 153.644791,138.139374 C136.579636,155.754547 120.047363,173.855347 107.320084,194.942413 C99.056641,208.633591 91.424454,222.712555 90.768700,239.391159 C90.412613,248.447906 93.288284,253.133423 101.877769,255.835281 C109.899414,258.358521 118.092995,257.799011 126.114601,256.415894 C163.647079,249.944366 195.393204,232.633896 221.525986,204.913666 C238.176849,187.251297 250.275665,166.674591 260.758240,144.978256 C270.314209,125.199829 278.823975,104.825119 291.564819,86.765656 C300.119598,74.639694 309.954010,63.876396 325.404846,60.359566 C344.153076,56.092201 361.531647,62.437016 370.455872,77.058235 C375.790588,85.798492 376.347534,95.420334 374.705963,105.116310 C369.091644,138.277985 354.960724,167.803192 335.695099,195.087708 C316.099670,222.839249 292.088806,246.165329 264.977692,266.499298 C254.160355,274.612579 243.019699,282.162811 230.986755,289.073059z" />
+                    <path
+                        d="M229.359360,385.380737 C207.744125,404.327789 181.471634,404.126740 161.604126,389.866852 C149.844559,381.426392 142.900467,369.775208 140.639938,355.432861 C139.551575,348.527588 142.139267,344.962921 149.007065,343.893311 C175.695969,339.736816 200.997803,331.379883 224.979813,318.971100 C232.911743,314.866974 237.059967,316.331482 240.869766,324.439514 C250.454269,344.837372 246.030960,368.680237 229.359360,385.380737z" />
+                    <path
+                        d="M398.960297,106.133690 C401.073456,94.152359 401.022705,82.505424 400.843231,70.849274 C400.705627,61.911732 403.643921,59.621544 412.399597,59.441414 C442.000519,58.832420 470.279358,88.957756 463.002441,122.626236 C459.464996,138.993011 449.978119,151.172562 435.013947,158.908401 C421.931335,165.671555 408.362061,166.683273 394.384613,162.126373 C386.656189,159.606735 385.055573,156.076492 387.975433,148.454056 C393.167175,134.900574 397.366913,121.084885 398.960297,106.133690z" />
+                    <path
+                        d="M370.138611,237.007446 C384.529114,268.155273 361.368164,304.818115 327.444244,305.392120 C314.198730,305.616211 302.563568,301.673279 292.403534,293.227051 C284.931396,287.015289 284.618622,281.756805 291.956177,275.606018 C311.154694,259.512665 328.957703,242.081131 344.619568,222.480392 C348.986084,217.015671 354.034271,217.027161 359.237213,221.759857 C363.877899,225.981125 367.247498,231.083450 370.138611,237.007446z" />
+                </svg>
+                <span class="logo-text">Tambourine</span>
+            </a>
+            <div class="nav-links">
+                <a href="https://github.com/kstonekuan/tambourine-voice" class="nav-link" target="_blank"
+                    rel="noopener">
+                    <i data-lucide="github"></i>
+                    GitHub
+                </a>
+                <a href="https://github.com/kstonekuan/tambourine-voice" class="nav-link primary" target="_blank"
+                    rel="noopener">
+                    Get Started
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <svg class="hero-bg" viewBox="0 0 900 300" preserveAspectRatio="none">
+            <path class="wave-line" d="M0,150 Q75,100 150,150 T300,150 T450,150 T600,150 T750,150 T900,150" />
+            <path class="wave-line" d="M0,150 Q75,180 150,150 T300,150 T450,150 T600,150 T750,150 T900,150"
+                style="opacity:0.5" />
+        </svg>
+        <div class="container hero-content">
+            <div class="hero-badge">Open Source Voice Dictation Platform</div>
+            <h1><span>Build Your Own Voice Interface</span></h1>
+            <p class="hero-subtitle">An open-source platform for AI voice dictation that you can customize and
+                personalize to your exact needs. Choose your models, write your prompts, make it yours.</p>
+            <div class="hero-ctas">
+                <a href="https://github.com/kstonekuan/tambourine-voice" class="btn btn-primary" target="_blank"
+                    rel="noopener">
+                    Get Started
+                </a>
+                <a href="https://github.com/kstonekuan/tambourine-voice" class="btn btn-secondary" target="_blank"
+                    rel="noopener">
+                    <i data-lucide="github"></i>
+                    Star on GitHub
+                </a>
+            </div>
+            <div class="hero-compat">
+                <span><svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M0 3.5L9.8 2.1v9.4H0V3.5zm0 16.9l9.8 1.4v-9.3H0v7.9zM10.9 1.9L24 0v11.5H10.9V1.9zm0 20.2L24 24V12.5H10.9v9.6z" />
+                    </svg> Windows</span>
+                <span><svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+                    </svg> macOS</span>
+                <span><i data-lucide="type"></i> Works with any text input</span>
+            </div>
+            <div class="hero-demo">
+                <div class="demo-wrapper">
+                    <img src="./assets/windows_notepad.gif" alt="Tambourine voice dictation demo" loading="lazy">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Platform Section -->
+    <section class="platform">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-label">The Platform Approach</div>
+                <h2 class="section-title">The Foundation of Voice Interfaces</h2>
+                <p class="section-subtitle">Tambourine isn't a locked-down app. It's infrastructure you can build on to
+                    create exactly the voice experience you need.</p>
+            </div>
+            <div class="platform-grid">
+                <div class="platform-card">
+                    <div class="platform-icon">
+                        <i data-lucide="cpu"></i>
+                    </div>
+                    <h3>Choose Your Models</h3>
+                    <p>Pick the STT and LLM that work for you. Use cloud providers or run fully
+                        local with Whisper and Ollama.</p>
+                </div>
+                <div class="platform-card">
+                    <div class="platform-icon">
+                        <i data-lucide="pencil"></i>
+                    </div>
+                    <h3>Write Your Prompts</h3>
+                    <p>Customize how your speech gets formatted. Add your own rules, adjust the tone, define how
+                        punctuation works.</p>
+                </div>
+                <div class="platform-card">
+                    <div class="platform-icon">
+                        <i data-lucide="blocks"></i>
+                    </div>
+                    <h3>Build Your Features</h3>
+                    <p>Implement features like backtracking corrections and list formatting your way. The logic is in
+                        prompts you control.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-label">What You Can Build</div>
+                <h2 class="section-title">Examples of Personalization</h2>
+                <p class="section-subtitle">These features ship by default, but they're implemented in customizable
+                    prompts. Modify them, extend them, or build your own.</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">
+                            <i data-lucide="book-open"></i>
+                        </div>
+                        <div>
+                            <h3>Personal Dictionary</h3>
+                            <p>Teach it technical terms, names, and jargon specific to your work.</p>
+                        </div>
+                    </div>
+                    <div class="feature-example">
+                        <span class="highlight">"ant row pic"</span> &rarr; Anthropic
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">
+                            <i data-lucide="undo-2"></i>
+                        </div>
+                        <div>
+                            <h3>Backtrack Corrections</h3>
+                            <p>Say "actually" or "scratch that" to correct mistakes as you speak.</p>
+                        </div>
+                    </div>
+                    <div class="feature-example">
+                        "at 2 <span class="highlight">actually</span> 3" &rarr; at 3
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">
+                            <i data-lucide="list-ordered"></i>
+                        </div>
+                        <div>
+                            <h3>Smart List Formatting</h3>
+                            <p>Automatically format lists.</p>
+                        </div>
+                    </div>
+                    <div class="feature-example">
+                        "<span class="highlight">one</span> eggs <span class="highlight">two</span> milk" &rarr; 1. Eggs
+                        2. Milk
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">
+                            <i data-lucide="lightbulb"></i>
+                        </div>
+                        <div>
+                            <h3>Your Own Ideas</h3>
+                            <p>The prompts and logic are yours to modify. Build what you need.</p>
+                        </div>
+                    </div>
+                    <div class="feature-example">
+                        Edit prompts in Settings &rarr; Prompts
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Future Section -->
+    <section class="future">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-label">Coming Soon</div>
+                <h2 class="section-title">Context-Awareness</h2>
+                <p class="section-subtitle">Tmabourine will access surrounding context to make dictation
+                    smarter.</p>
+            </div>
+            <div class="future-grid">
+                <div class="future-card">
+                    <h3>App-Dependent Formatting</h3>
+                    <p>Automatically adapt to the app you're in. Emails get salutations, code editors get syntax-aware
+                        output.</p>
+                </div>
+                <div class="future-card">
+                    <h3>Selection Commands</h3>
+                    <p>Highlight text and say "make this more formal" or "translate to Spanish" to transform it in
+                        place.</p>
+                </div>
+                <div class="future-card">
+                    <h3>Voice Shortcuts</h3>
+                    <p>Create custom triggers like "insert meeting link" that expand to frequently used text.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Community Section -->
+    <section class="community">
+        <div class="container">
+            <div class="community-content">
+                <div class="community-badge">
+                    <i data-lucide="scale"></i>
+                    AGPL-3.0 License
+                </div>
+                <h2>Built in the Open</h2>
+                <p>Tambourine is fully open source. Contribute features, report bugs, or fork it and build something
+                    new. The platform is yours.</p>
+                <div class="community-ctas">
+                    <a href="https://github.com/kstonekuan/tambourine-voice" class="btn btn-primary" target="_blank"
+                        rel="noopener">
+                        <i data-lucide="github"></i>
+                        View on GitHub
+                    </a>
+                    <a href="https://github.com/kstonekuan/tambourine-voice/blob/main/CONTRIBUTING.md"
+                        class="btn btn-secondary" target="_blank" rel="noopener">
+                        <i data-lucide="users"></i>
+                        Contribute
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container footer-inner">
+            <div class="footer-left">
+                <a href="#" class="footer-logo">
+                    <svg viewBox="0 -24 480 480" fill="currentColor">
+                        <path
+                            d="M230.986755,289.073059 C210.233383,300.688568 188.942276,310.172607 166.173950,315.793335 C133.176422,323.939240 100.172661,325.088959 67.951645,312.382812 C50.932407,305.671356 37.964565,294.224976 33.314289,275.674530 C29.763798,261.511230 33.032742,247.830490 38.307205,234.694656 C47.399551,212.050507 62.548660,193.439941 78.883392,175.749191 C97.485817,155.602509 118.422501,138.059448 140.444244,121.808708 C146.059555,117.664932 152.161880,114.171448 158.110397,110.492310 C161.970383,108.104927 165.869980,108.171570 168.967560,111.701004 C172.138931,115.314529 171.409409,119.215775 168.403946,122.543785 C163.608093,127.854355 158.624985,132.998657 153.644791,138.139374 C136.579636,155.754547 120.047363,173.855347 107.320084,194.942413 C99.056641,208.633591 91.424454,222.712555 90.768700,239.391159 C90.412613,248.447906 93.288284,253.133423 101.877769,255.835281 C109.899414,258.358521 118.092995,257.799011 126.114601,256.415894 C163.647079,249.944366 195.393204,232.633896 221.525986,204.913666 C238.176849,187.251297 250.275665,166.674591 260.758240,144.978256 C270.314209,125.199829 278.823975,104.825119 291.564819,86.765656 C300.119598,74.639694 309.954010,63.876396 325.404846,60.359566 C344.153076,56.092201 361.531647,62.437016 370.455872,77.058235 C375.790588,85.798492 376.347534,95.420334 374.705963,105.116310 C369.091644,138.277985 354.960724,167.803192 335.695099,195.087708 C316.099670,222.839249 292.088806,246.165329 264.977692,266.499298 C254.160355,274.612579 243.019699,282.162811 230.986755,289.073059z" />
+                        <path
+                            d="M229.359360,385.380737 C207.744125,404.327789 181.471634,404.126740 161.604126,389.866852 C149.844559,381.426392 142.900467,369.775208 140.639938,355.432861 C139.551575,348.527588 142.139267,344.962921 149.007065,343.893311 C175.695969,339.736816 200.997803,331.379883 224.979813,318.971100 C232.911743,314.866974 237.059967,316.331482 240.869766,324.439514 C250.454269,344.837372 246.030960,368.680237 229.359360,385.380737z" />
+                        <path
+                            d="M398.960297,106.133690 C401.073456,94.152359 401.022705,82.505424 400.843231,70.849274 C400.705627,61.911732 403.643921,59.621544 412.399597,59.441414 C442.000519,58.832420 470.279358,88.957756 463.002441,122.626236 C459.464996,138.993011 449.978119,151.172562 435.013947,158.908401 C421.931335,165.671555 408.362061,166.683273 394.384613,162.126373 C386.656189,159.606735 385.055573,156.076492 387.975433,148.454056 C393.167175,134.900574 397.366913,121.084885 398.960297,106.133690z" />
+                        <path
+                            d="M370.138611,237.007446 C384.529114,268.155273 361.368164,304.818115 327.444244,305.392120 C314.198730,305.616211 302.563568,301.673279 292.403534,293.227051 C284.931396,287.015289 284.618622,281.756805 291.956177,275.606018 C311.154694,259.512665 328.957703,242.081131 344.619568,222.480392 C348.986084,217.015671 354.034271,217.027161 359.237213,221.759857 C363.877899,225.981125 367.247498,231.083450 370.138611,237.007446z" />
+                    </svg>
+                </a>
+                <div class="footer-links">
+                    <a href="https://github.com/kstonekuan/tambourine-voice" target="_blank" rel="noopener">GitHub</a>
+                    <a href="https://github.com/kstonekuan/tambourine-voice/blob/main/README.md" target="_blank"
+                        rel="noopener">Docs</a>
+                </div>
+            </div>
+            <div class="footer-right">
+                © 2025 Tambourine · Open source under AGPL-3.0
+            </div>
+        </div>
+    </footer>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>lucide.createIcons();</script>
+</body>
+
+</html>
