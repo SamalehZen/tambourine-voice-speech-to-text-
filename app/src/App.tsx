@@ -1,5 +1,6 @@
 import { Kbd, Loader, NavLink, Text, Title, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Home, Settings } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { HistoryFeed } from "./components/HistoryFeed";
@@ -22,7 +23,12 @@ import {
 	useSettings,
 	useShortcutErrors,
 } from "./lib/queries";
-import { type ConfigResponse, type HotkeyConfig, tauriAPI } from "./lib/tauri";
+import {
+	type AvailableProvidersData,
+	type ConfigResponse,
+	type HotkeyConfig,
+	tauriAPI,
+} from "./lib/tauri";
 import { useRecordingStore } from "./stores/recordingStore";
 import "./app-main.css";
 
@@ -264,6 +270,7 @@ export default function App() {
 	const [activeView, setActiveView] = useState<View>("home");
 	const connectionState = useRecordingStore((s) => s.state);
 	const hasShownConflictNotification = useRef(false);
+	const queryClient = useQueryClient();
 
 	// Listen for available providers from overlay window (must stay mounted)
 	useAvailableProvidersListener();
@@ -316,6 +323,34 @@ export default function App() {
 					color: "red",
 					autoClose: 5000,
 				});
+
+				// Auto-fallback to first available provider when a provider is unavailable
+				if (
+					response.setting === "stt-provider" ||
+					response.setting === "llm-provider"
+				) {
+					const providers = queryClient.getQueryData<AvailableProvidersData>([
+						"availableProviders",
+					]);
+					if (providers) {
+						const providerList =
+							response.setting === "stt-provider"
+								? providers.stt
+								: providers.llm;
+						const firstProvider = providerList[0];
+						if (firstProvider) {
+							const updateFn =
+								response.setting === "stt-provider"
+									? tauriAPI.updateSTTProvider
+									: tauriAPI.updateLLMProvider;
+
+							updateFn(firstProvider.value).then(() => {
+								queryClient.invalidateQueries({ queryKey: ["settings"] });
+								tauriAPI.emitSettingsChanged();
+							});
+						}
+					}
+				}
 			}
 		};
 
@@ -332,7 +367,7 @@ export default function App() {
 			isMounted = false;
 			unlisten?.();
 		};
-	}, []);
+	}, [queryClient]);
 
 	return (
 		<div className="app-layout">
