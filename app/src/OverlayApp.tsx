@@ -18,6 +18,7 @@ import { useDrag } from "@use-gesture/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import Logo from "./assets/logo.svg?react";
+import { useNativeAudioTrack } from "./hooks/useNativeAudioTrack";
 import {
 	useAddHistoryEntry,
 	useServerUrl,
@@ -115,7 +116,18 @@ function RecordingControl() {
 	// State and refs for mic acquisition optimization
 	const [isMicAcquiring, setIsMicAcquiring] = useState(false);
 	const micPreparedRef = useRef(false);
-	const lastMicIdRef = useRef<string | null>(null);
+	// Track the last mic device ID used for capture
+	// undefined = never started, null = system default, string = specific device
+	const lastMicIdRef = useRef<string | null | undefined>(undefined);
+
+	// Native audio capture for low-latency mic acquisition
+	// Bypasses browser's getUserMedia() which has ~300-400ms latency on macOS
+	const {
+		track: nativeAudioTrack,
+		isReady: isNativeAudioReady,
+		start: startNativeCapture,
+		stop: stopNativeCapture,
+	} = useNativeAudioTrack();
 
 	const { data: serverUrl } = useServerUrl();
 	const { data: settings } = useSettings();
@@ -210,12 +222,41 @@ function RecordingControl() {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		try {
-			// Skip mic acquisition if already pre-warmed by prepare-recording event
-			if (!micPreparedRef.current && client && settings?.selected_mic_id) {
-				// Only update mic if device changed from last recording
-				if (lastMicIdRef.current !== settings.selected_mic_id) {
-					await client.updateMic(settings.selected_mic_id);
-					lastMicIdRef.current = settings.selected_mic_id;
+			// Use native audio capture for low-latency mic acquisition
+			if (isNativeAudioReady) {
+				const deviceId = settings?.selected_mic_id ?? undefined;
+
+				// Start native capture (skip if pre-warmed)
+				if (!micPreparedRef.current) {
+					await startNativeCapture(deviceId);
+					lastMicIdRef.current = deviceId ?? null;
+				}
+
+				// Inject the native audio track into WebRTC
+				if (client && nativeAudioTrack) {
+					const transport = client.transport as SmallWebRTCTransport;
+					const pc = (transport as unknown as { pc?: RTCPeerConnection }).pc;
+					if (pc) {
+						const audioSender = pc
+							.getSenders()
+							.find(
+								(s) =>
+									s.track?.kind === "audio" ||
+									pc
+										.getTransceivers()
+										.some(
+											(t) =>
+												t.sender === s && t.receiver.track?.kind === "audio",
+										),
+							);
+
+						if (audioSender) {
+							await audioSender.replaceTrack(nativeAudioTrack);
+						} else {
+							const stream = new MediaStream([nativeAudioTrack]);
+							pc.addTrack(nativeAudioTrack, stream);
+						}
+					}
 				}
 			}
 
@@ -229,13 +270,23 @@ function RecordingControl() {
 		} finally {
 			setIsMicAcquiring(false);
 		}
-	}, [client, settings?.selected_mic_id, startRecording]);
+	}, [
+		client,
+		settings?.selected_mic_id,
+		startRecording,
+		isNativeAudioReady,
+		nativeAudioTrack,
+		startNativeCapture,
+	]);
 
 	const onStopRecording = useCallback(() => {
+		// Stop native audio capture and reset state so next recording starts fresh
+		stopNativeCapture();
+		lastMicIdRef.current = undefined;
 		if (stopRecording()) {
 			startResponseTimeout();
 		}
-	}, [stopRecording, startResponseTimeout]);
+	}, [stopRecording, startResponseTimeout, stopNativeCapture]);
 
 	// Hotkey event listeners
 	useEffect(() => {
@@ -262,24 +313,17 @@ function RecordingControl() {
 
 		const setup = async () => {
 			unlisten = await tauriAPI.onPrepareRecording(async () => {
-				// Only prepare if we're idle and have a mic selected
-				if (
-					client &&
-					settings?.selected_mic_id &&
-					!micPreparedRef.current &&
-					state === "idle"
-				) {
-					// Only acquire mic if device changed from last recording
-					if (lastMicIdRef.current !== settings.selected_mic_id) {
-						setIsMicAcquiring(true);
-						try {
-							await client.updateMic(settings.selected_mic_id);
-							lastMicIdRef.current = settings.selected_mic_id;
-						} catch (error) {
-							console.warn("[Recording] Failed to pre-warm mic:", error);
-						}
-						setIsMicAcquiring(false);
+				// Only prepare if we're idle and not already prepared
+				if (!micPreparedRef.current && state === "idle" && isNativeAudioReady) {
+					const deviceId = settings?.selected_mic_id ?? undefined;
+					setIsMicAcquiring(true);
+					try {
+						await startNativeCapture(deviceId);
+						lastMicIdRef.current = deviceId ?? null;
+					} catch (error) {
+						console.warn("[Recording] Failed to pre-warm mic:", error);
 					}
+					setIsMicAcquiring(false);
 					micPreparedRef.current = true;
 				}
 			});
@@ -290,7 +334,12 @@ function RecordingControl() {
 		return () => {
 			unlisten?.();
 		};
-	}, [client, settings?.selected_mic_id, state]);
+	}, [
+		settings?.selected_mic_id,
+		state,
+		isNativeAudioReady,
+		startNativeCapture,
+	]);
 
 	// Listen for settings changes from main window and invalidate cache to trigger sync
 	useEffect(() => {
@@ -479,6 +528,8 @@ function RecordingControl() {
 			const currentState = useRecordingStore.getState().state;
 			if (currentState === "recording" || currentState === "processing") {
 				console.warn("[Pipecat] Disconnected during recording/processing");
+				// Stop native audio capture
+				stopNativeCapture();
 				try {
 					client?.enableMic(false);
 					// Also stop the track to release the mic (removes OS mic indicator)
@@ -507,7 +558,7 @@ function RecordingControl() {
 					}
 				}, 3000);
 			}
-		}, [client, serverUrl, handleDisconnected]),
+		}, [client, serverUrl, handleDisconnected, stopNativeCapture]),
 	);
 
 	// LLM text streaming handlers (using official RTVI protocol via RTVIObserver)

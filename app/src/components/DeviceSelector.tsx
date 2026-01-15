@@ -1,44 +1,27 @@
 import { Select } from "@mantine/core";
 import { useEffect, useState } from "react";
+import {
+	type AudioDeviceInfo,
+	listNativeAudioDevices,
+} from "../lib/nativeAudio";
 import { useSettings, useUpdateSelectedMic } from "../lib/queries";
-
-interface AudioDevice {
-	deviceId: string;
-	label: string;
-}
 
 export function DeviceSelector() {
 	const { data: settings, isLoading: settingsLoading } = useSettings();
 	const updateSelectedMic = useUpdateSelectedMic();
-	const [devices, setDevices] = useState<AudioDevice[]>([]);
+	const [devices, setDevices] = useState<AudioDeviceInfo[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
 		async function loadDevices() {
 			try {
-				// Request permission first (needed to get device labels)
-				const stream = await navigator.mediaDevices.getUserMedia({
-					audio: true,
-				});
-
-				// Stop the audio track immediately to release the microphone
-				for (const track of stream.getTracks()) {
-					track.stop();
-				}
-
-				const allDevices = await navigator.mediaDevices.enumerateDevices();
-				const audioInputs = allDevices
-					.filter((device) => device.kind === "audioinput")
-					.map((device) => ({
-						deviceId: device.deviceId,
-						label: device.label || `Microphone ${device.deviceId.slice(0, 8)}`,
-					}));
-
-				setDevices(audioInputs);
+				// Use native device enumeration via cpal (bypasses browser permission)
+				const nativeDevices = await listNativeAudioDevices();
+				setDevices(nativeDevices);
 				setError(null);
 			} catch (err) {
-				setError("Could not access microphones. Please grant permission.");
+				setError("Could not access microphones.");
 				console.error("Failed to enumerate devices:", err);
 			} finally {
 				setIsLoading(false);
@@ -47,17 +30,11 @@ export function DeviceSelector() {
 
 		loadDevices();
 
-		// Listen for device changes
-		const handleDeviceChange = () => {
-			loadDevices();
-		};
-		navigator.mediaDevices.addEventListener("devicechange", handleDeviceChange);
+		// Periodically refresh device list (native API doesn't have change events)
+		const intervalId = setInterval(loadDevices, 5000);
 
 		return () => {
-			navigator.mediaDevices.removeEventListener(
-				"devicechange",
-				handleDeviceChange,
-			);
+			clearInterval(intervalId);
 		};
 	}, []);
 
@@ -89,12 +66,10 @@ export function DeviceSelector() {
 
 	const selectData = [
 		{ value: "default", label: "System Default" },
-		...devices
-			.filter((device) => device.deviceId !== "default")
-			.map((device) => ({
-				value: device.deviceId,
-				label: device.label,
-			})),
+		...devices.map((device) => ({
+			value: device.id,
+			label: device.name,
+		})),
 	];
 
 	return (

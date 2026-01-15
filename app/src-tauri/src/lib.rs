@@ -10,6 +10,7 @@ mod audio;
 mod audio_mute;
 mod commands;
 mod history;
+mod mic_capture;
 mod settings;
 mod state;
 
@@ -18,6 +19,7 @@ mod tests;
 
 use audio_mute::AudioMuteManager;
 use history::HistoryStorage;
+use mic_capture::{AudioDeviceInfo, MicCapture, MicCaptureManager};
 use settings::HotkeyConfig;
 use state::AppState;
 
@@ -299,6 +301,42 @@ fn is_audio_mute_supported() -> bool {
     audio_mute::is_supported()
 }
 
+/// Start native microphone capture
+#[tauri::command]
+fn start_native_mic(
+    state: tauri::State<'_, MicCaptureManager>,
+    device_id: Option<String>,
+) -> Result<(), String> {
+    state
+        .capture()
+        .start(device_id.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+/// Stop native microphone capture
+#[tauri::command]
+fn stop_native_mic(state: tauri::State<'_, MicCaptureManager>) {
+    state.capture().stop();
+}
+
+/// Pause native microphone capture (stream stays alive for fast resume)
+#[tauri::command]
+fn pause_native_mic(state: tauri::State<'_, MicCaptureManager>) {
+    state.capture().pause();
+}
+
+/// Resume native microphone capture after pause
+#[tauri::command]
+fn resume_native_mic(state: tauri::State<'_, MicCaptureManager>) {
+    state.capture().resume();
+}
+
+/// List available native audio input devices with ID and name
+#[tauri::command]
+fn list_native_mic_devices(state: tauri::State<'_, MicCaptureManager>) -> Vec<AudioDeviceInfo> {
+    state.capture().list_devices()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize logger
@@ -333,6 +371,11 @@ pub fn run() {
             commands::history::delete_history_entry,
             commands::history::clear_history,
             commands::overlay::resize_overlay,
+            start_native_mic,
+            stop_native_mic,
+            pause_native_mic,
+            resume_native_mic,
+            list_native_mic_devices,
         ])
         .setup(|app| {
             // Initialize history storage
@@ -348,6 +391,14 @@ pub fn run() {
             if let Some(audio_mute_manager) = AudioMuteManager::new() {
                 app.manage(audio_mute_manager);
             }
+
+            // Initialize native mic capture manager
+            // Audio data is streamed to frontend via "native-audio-data" events
+            let app_handle = app.handle().clone();
+            let mic_capture_manager = MicCaptureManager::new(move |audio_data| {
+                let _ = app_handle.emit("native-audio-data", audio_data);
+            });
+            app.manage(mic_capture_manager);
 
             // Register shortcuts from store (now that store plugin is available)
             // This function handles errors gracefully - it never fails the app startup
