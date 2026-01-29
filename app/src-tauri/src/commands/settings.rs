@@ -78,24 +78,20 @@ pub fn get_shortcut_errors(app: AppHandle) -> ShortcutErrors {
 #[tauri::command]
 pub async fn set_hotkey_enabled(
     app: AppHandle,
-    hotkey_type: String,
+    hotkey_type: HotkeyType,
     enabled: bool,
 ) -> Result<(), String> {
-    let (store_key, default_hotkey) = match hotkey_type.as_str() {
-        "toggle" => (StoreKey::ToggleHotkey, HotkeyConfig::default_toggle()),
-        "hold" => (StoreKey::HoldHotkey, HotkeyConfig::default_hold()),
-        "paste_last" => (
-            StoreKey::PasteLastHotkey,
-            HotkeyConfig::default_paste_last(),
-        ),
-        _ => return Err(format!("Unknown hotkey type: {}", hotkey_type)),
-    };
-
-    let mut hotkey: HotkeyConfig = get_setting_from_store(&app, store_key, default_hotkey);
+    let store_key = hotkey_type.store_key();
+    let mut hotkey: HotkeyConfig =
+        get_setting_from_store(&app, store_key, hotkey_type.default_hotkey());
     hotkey.enabled = enabled;
 
     crate::save_setting_to_store(&app, store_key, &hotkey)?;
-    log::info!("Set {} hotkey enabled: {}", hotkey_type, enabled);
+    log::info!(
+        "Set {} hotkey enabled: {}",
+        hotkey_type.display_name(),
+        enabled
+    );
     Ok(())
 }
 
@@ -104,7 +100,7 @@ pub async fn set_hotkey_enabled(
 #[tauri::command]
 pub async fn set_hotkey_enabled(
     _app: AppHandle,
-    _hotkey_type: String,
+    _hotkey_type: HotkeyType,
     _enabled: bool,
 ) -> Result<(), String> {
     Ok(())

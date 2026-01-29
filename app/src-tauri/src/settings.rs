@@ -293,6 +293,14 @@ impl HotkeyType {
             HotkeyType::PasteLast => "paste last",
         }
     }
+
+    pub fn default_hotkey(&self) -> HotkeyConfig {
+        match self {
+            HotkeyType::Toggle => HotkeyConfig::default_toggle(),
+            HotkeyType::Hold => HotkeyConfig::default_hold(),
+            HotkeyType::PasteLast => HotkeyConfig::default_paste_last(),
+        }
+    }
 }
 
 /// Errors that can occur during settings operations
