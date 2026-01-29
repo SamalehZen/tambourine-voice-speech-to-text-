@@ -1,4 +1,4 @@
-import { Button, Loader, TextInput } from "@mantine/core";
+import { ActionIcon, Button, Loader, TextInput, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import ky from "ky";
 import { Check, Copy, RefreshCw, X } from "lucide-react";
@@ -216,17 +216,18 @@ export function ConnectionSettings() {
 							</span>
 						</div>
 					</div>
-					<Button
-						onClick={handleReconnect}
-						disabled={isButtonDisabled}
-						loading={isReconnecting}
-						size="sm"
-						variant="light"
-						color="gray"
-						leftSection={!isReconnecting && <RefreshCw size={14} />}
-					>
-						{isReconnecting ? "Reconnecting..." : "Reconnect"}
-					</Button>
+					<Tooltip label={isReconnecting ? "Reconnecting..." : "Reconnect"} withArrow>
+						<ActionIcon
+							onClick={handleReconnect}
+							disabled={isButtonDisabled}
+							loading={isReconnecting}
+							size="lg"
+							variant="light"
+							color="gray"
+						>
+							<RefreshCw size={14} />
+						</ActionIcon>
+					</Tooltip>
 				</div>
 			</div>
 
@@ -334,17 +335,16 @@ export function ConnectionSettings() {
 						</p>
 					</div>
 					{clientUUID && (
-						<Button
-							onClick={handleCopyUUID}
-							size="sm"
-							variant="light"
-							color={uuidCopied ? "green" : "gray"}
-							leftSection={
-								uuidCopied ? <Check size={14} /> : <Copy size={14} />
-							}
-						>
-							{uuidCopied ? "Copied" : "Copy"}
-						</Button>
+						<Tooltip label={uuidCopied ? "Copied" : "Copy"} withArrow>
+							<ActionIcon
+								onClick={handleCopyUUID}
+								size="lg"
+								variant="light"
+								color={uuidCopied ? "green" : "gray"}
+							>
+								{uuidCopied ? <Check size={14} /> : <Copy size={14} />}
+							</ActionIcon>
+						</Tooltip>
 					)}
 				</div>
 			</div>

@@ -1,4 +1,5 @@
 import {
+	ActionIcon,
 	Button,
 	Group,
 	Modal,
@@ -6,6 +7,7 @@ import {
 	Stack,
 	Text,
 	TextInput,
+	Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { AlertTriangle, Download, RotateCcw, Upload } from "lucide-react";
@@ -137,7 +139,7 @@ export function DataManagementSettings() {
 				<div className="settings-card">
 					<div
 						className="settings-row"
-						style={{ flexDirection: "column", alignItems: "stretch", gap: 12 }}
+						style={{ justifyContent: "space-between", alignItems: "center" }}
 					>
 						<div>
 							<p className="settings-label">Export & Import</p>
@@ -147,24 +149,28 @@ export function DataManagementSettings() {
 							</p>
 						</div>
 						<Group gap="sm">
-							<Button
-								onClick={handleExport}
-								loading={exportData.isPending}
-								leftSection={<Download size={16} />}
-								variant="light"
-								color="gray"
-							>
-								Export Data
-							</Button>
-							<Button
-								onClick={handleImport}
-								loading={importData.isPending}
-								leftSection={<Upload size={16} />}
-								variant="light"
-								color="gray"
-							>
-								Import Data
-							</Button>
+							<Tooltip label="Export Data" withArrow>
+								<ActionIcon
+									onClick={handleExport}
+									loading={exportData.isPending}
+									size="lg"
+									variant="light"
+									color="gray"
+								>
+									<Download size={16} />
+								</ActionIcon>
+							</Tooltip>
+							<Tooltip label="Import Data" withArrow>
+								<ActionIcon
+									onClick={handleImport}
+									loading={importData.isPending}
+									size="lg"
+									variant="light"
+									color="gray"
+								>
+									<Upload size={16} />
+								</ActionIcon>
+							</Tooltip>
 						</Group>
 					</div>
 				</div>
