@@ -2,7 +2,7 @@
 
 Thanks for your interest in contributing to Tambourine! This guide will help you get started.
 
-If you find Tambourine useful, consider giving the repo a star — it helps others discover the project and keeps contributors motivated.
+If you find Tambourine useful, consider giving the repo a star — it helps others discover the project and keeps contributors motivated. You can also join the [Discord server](https://discord.gg/dUyuXWVJ2a) to connect with the community.
 
 ## Development Setup
 
@@ -150,4 +150,4 @@ The `examples/` directory contains pre-built prompt configurations for different
 
 ## Questions?
 
-Open an issue or join the discussion on the project's GitHub page.
+Open an issue, start a [GitHub Discussion](https://github.com/kstonekuan/tambourine-voice/discussions), or join the [Discord server](https://discord.gg/dUyuXWVJ2a).
