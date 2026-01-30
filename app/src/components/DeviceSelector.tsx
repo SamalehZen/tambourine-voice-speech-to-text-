@@ -90,6 +90,7 @@ export function DeviceSelector() {
 				onChange={handleChange}
 				allowDeselect={false}
 				className="device-selector"
+				aria-label="Select microphone device"
 			/>
 		</div>
 	);
