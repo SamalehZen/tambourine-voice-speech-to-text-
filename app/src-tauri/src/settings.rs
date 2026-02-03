@@ -21,7 +21,7 @@ pub const DEFAULT_HOTKEY_MODIFIERS: &[&str] = &["ctrl", "alt"];
 /// Default key for toggle recording (Ctrl+Alt+Space)
 pub const DEFAULT_TOGGLE_KEY: &str = "Space";
 
-/// Default key for hold-to-record (Ctrl+Alt+`)
+/// Default key for hold-to-record (Ctrl+Alt+Backquote)
 pub const DEFAULT_HOLD_KEY: &str = "Backquote";
 
 /// Default key for paste last transcription (Ctrl+Alt+.)
@@ -82,7 +82,7 @@ impl StoreKey {
 /// Configuration for a hotkey combination
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct HotkeyConfig {
-    /// Modifier keys (e.g., ["ctrl", "alt"])
+    /// Modifier keys (e.g., `["ctrl", "alt"]`)
     pub modifiers: Vec<String>,
     /// The main key (e.g., "Space")
     pub key: String,
@@ -108,7 +108,7 @@ impl HotkeyConfig {
         Self {
             modifiers: DEFAULT_HOTKEY_MODIFIERS
                 .iter()
-                .map(|s| s.to_string())
+                .map(std::string::ToString::to_string)
                 .collect(),
             key: key.to_string(),
             enabled: true,
@@ -138,12 +138,12 @@ impl HotkeyConfig {
         parts.join("+")
     }
 
-    /// Convert to a tauri Shortcut using FromStr parsing
+    /// Convert to a tauri Shortcut using `FromStr` parsing
     #[cfg(desktop)]
     pub fn to_shortcut(&self) -> Result<Shortcut, String> {
         let shortcut_str = self.to_shortcut_string();
         Shortcut::from_str(&shortcut_str)
-            .map_err(|e| format!("Failed to parse shortcut '{}': {:?}", shortcut_str, e))
+            .map_err(|e| format!("Failed to parse shortcut '{shortcut_str}': {e:?}"))
     }
 
     /// Convert to a tauri Shortcut, falling back to a default if parsing fails
@@ -198,6 +198,39 @@ pub struct PromptSection {
     pub prompt_mode: PromptMode,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PromptSectionType {
+    Main,
+    Advanced,
+    Dictionary,
+}
+
+impl PromptSectionType {
+    pub const ALL: [Self; 3] = [Self::Main, Self::Advanced, Self::Dictionary];
+
+    /// String representation used in file exports/imports
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Main => "main",
+            Self::Advanced => "advanced",
+            Self::Dictionary => "dictionary",
+        }
+    }
+}
+
+impl FromStr for PromptSectionType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "main" => Ok(Self::Main),
+            "advanced" => Ok(Self::Advanced),
+            "dictionary" => Ok(Self::Dictionary),
+            _ => Err(format!("Unknown prompt section: {s}")),
+        }
+    }
+}
+
 /// Configuration for all cleanup prompt sections
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CleanupPromptSections {
@@ -225,11 +258,29 @@ impl Default for CleanupPromptSections {
     }
 }
 
+impl CleanupPromptSections {
+    pub fn get(&self, section_type: PromptSectionType) -> &PromptSection {
+        match section_type {
+            PromptSectionType::Main => &self.main,
+            PromptSectionType::Advanced => &self.advanced,
+            PromptSectionType::Dictionary => &self.dictionary,
+        }
+    }
+
+    pub fn set(&mut self, section_type: PromptSectionType, section: PromptSection) {
+        match section_type {
+            PromptSectionType::Main => self.main = section,
+            PromptSectionType::Advanced => self.advanced = section,
+            PromptSectionType::Dictionary => self.dictionary = section,
+        }
+    }
+}
+
 // ============================================================================
 // APP SETTINGS - Complete settings structure
 // ============================================================================
 
-/// Complete application settings matching the TypeScript AppSettings interface
+/// Complete application settings matching the TypeScript `AppSettings` interface
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
     pub toggle_hotkey: HotkeyConfig,
@@ -278,27 +329,27 @@ pub enum HotkeyType {
 }
 
 impl HotkeyType {
-    pub fn store_key(&self) -> StoreKey {
+    pub fn store_key(self) -> StoreKey {
         match self {
-            HotkeyType::Toggle => StoreKey::ToggleHotkey,
-            HotkeyType::Hold => StoreKey::HoldHotkey,
-            HotkeyType::PasteLast => StoreKey::PasteLastHotkey,
+            Self::Toggle => StoreKey::ToggleHotkey,
+            Self::Hold => StoreKey::HoldHotkey,
+            Self::PasteLast => StoreKey::PasteLastHotkey,
         }
     }
 
-    pub fn display_name(&self) -> &'static str {
+    pub fn display_name(self) -> &'static str {
         match self {
-            HotkeyType::Toggle => "toggle",
-            HotkeyType::Hold => "hold",
-            HotkeyType::PasteLast => "paste last",
+            Self::Toggle => "toggle",
+            Self::Hold => "hold",
+            Self::PasteLast => "paste last",
         }
     }
 
-    pub fn default_hotkey(&self) -> HotkeyConfig {
+    pub fn default_hotkey(self) -> HotkeyConfig {
         match self {
-            HotkeyType::Toggle => HotkeyConfig::default_toggle(),
-            HotkeyType::Hold => HotkeyConfig::default_hold(),
-            HotkeyType::PasteLast => HotkeyConfig::default_paste_last(),
+            Self::Toggle => HotkeyConfig::default_toggle(),
+            Self::Hold => HotkeyConfig::default_hold(),
+            Self::PasteLast => HotkeyConfig::default_paste_last(),
         }
     }
 }
@@ -321,11 +372,11 @@ pub enum SettingsError {
 impl std::fmt::Display for SettingsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SettingsError::HotkeyConflict { message, .. } => write!(f, "{}", message),
+            SettingsError::HotkeyConflict { message, .. } => write!(f, "{message}"),
             SettingsError::InvalidValue { field, message } => {
-                write!(f, "Invalid value for {}: {}", field, message)
+                write!(f, "Invalid value for {field}: {message}")
             }
-            SettingsError::StoreError(msg) => write!(f, "Store error: {}", msg),
+            SettingsError::StoreError(msg) => write!(f, "Store error: {msg}"),
         }
     }
 }
