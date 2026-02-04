@@ -1,3 +1,4 @@
 
 # GCP credentials
 gcp-credentials.json
+server/.env
