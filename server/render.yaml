@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: tambourine-voice-server
+    runtime: python
+    region: frankfurt
+    plan: free
+    buildCommand: pip install uv && uv sync --frozen
+    startCommand: uv run python render_start.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13"
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: GOOGLE_CREDENTIALS_BASE64
+        sync: false
+      - key: AUTO_STT_PROVIDER
+        value: google
+      - key: AUTO_LLM_PROVIDER
+        value: google
+    healthCheckPath: /health
