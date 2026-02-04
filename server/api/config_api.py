@@ -23,6 +23,7 @@ from processors.llm import (
     DICTIONARY_PROMPT_DEFAULT,
     MAIN_PROMPT_DEFAULT,
 )
+from processors.profiles import get_profile_by_id, get_profile_for_app
 from services.provider_registry import (
     LLMProviderId,
     STTProviderId,
@@ -131,6 +132,17 @@ class DefaultSectionsResponse(BaseModel):
     main: str
     advanced: str
     dictionary: str
+
+
+class AppContextData(BaseModel):
+    """Request body for updating application context."""
+
+    app_name: str
+    bundle_id: str | None = None
+    window_title: str | None = None
+    url: str | None = None
+    profile_id: str | None = None
+    additional_context: str | None = None
 
 
 # =============================================================================
@@ -364,3 +376,75 @@ async def get_available_providers(request: Request) -> AvailableProvidersRespons
         llm_providers = []
 
     return AvailableProvidersResponse(stt=stt_providers, llm=llm_providers)
+
+
+@config_router.put(
+    "/config/app-context",
+    response_model=ConfigSuccessResponse,
+    responses={
+        404: {"model": ConfigErrorResponse, "description": "Client not connected"},
+    },
+)
+@limiter.limit(RATE_LIMIT_RUNTIME_CONFIG, key_func=get_ip_only)
+async def update_app_context(
+    context: AppContextData,
+    request: Request,
+    x_client_uuid: Annotated[str, Header()],
+) -> ConfigSuccessResponse:
+    """Update formatting based on detected application context.
+
+    This endpoint allows the client to inform the server about the active
+    application, which is used to select an appropriate formatting profile.
+
+    Args:
+        context: Application context data including app name and optional identifiers
+        request: FastAPI request object
+        x_client_uuid: Client UUID from X-Client-UUID header
+
+    Returns:
+        Success response with the selected profile ID
+
+    Raises:
+        HTTPException: 404 if client not connected or pipeline not ready
+    """
+    client_manager = get_client_manager(request)
+    connection = client_manager.get_connection(x_client_uuid)
+
+    if connection is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "Client not connected", "code": "CLIENT_NOT_FOUND"},
+        )
+
+    if connection.context_manager is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "Pipeline not ready", "code": "PIPELINE_NOT_READY"},
+        )
+
+    if context.profile_id:
+        profile = get_profile_by_id(context.profile_id)
+        if profile is None:
+            profile = get_profile_for_app(
+                context.app_name,
+                context.bundle_id,
+                context.url,
+            )
+    else:
+        profile = get_profile_for_app(
+            context.app_name,
+            context.bundle_id,
+            context.url,
+        )
+
+    connection.context_manager.set_app_context(
+        app_name=context.app_name,
+        profile=profile,
+        additional_context=context.additional_context,
+    )
+
+    logger.info(
+        f"Updated app context for client {x_client_uuid}: "
+        f"{context.app_name} -> {profile.id}"
+    )
+    return ConfigSuccessResponse(setting="app-context", value=profile.id)

@@ -9,6 +9,7 @@
  */
 
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { ActiveWindowInfo } from "./formattingProfiles";
 
 // =============================================================================
 // Event Names - Must match src-tauri/src/events.rs
@@ -92,8 +93,12 @@ export interface ProviderChangeRequestPayload {
 	value: string;
 }
 
+export interface RecordingStartPayload {
+	window_info?: ActiveWindowInfo;
+}
+
 export interface EventPayloads {
-	[AppEvents.recordingStart]: undefined;
+	[AppEvents.recordingStart]: RecordingStartPayload;
 	[AppEvents.recordingStop]: undefined;
 	[AppEvents.prepareRecording]: undefined;
 	[AppEvents.configResponse]: ConfigResponse;

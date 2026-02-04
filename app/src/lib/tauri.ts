@@ -292,6 +292,7 @@ export type {
 	ConnectionState,
 	LLMErrorPayload,
 	ProviderChangeRequestPayload,
+	RecordingStartPayload,
 } from "./events";
 
 import {
@@ -302,6 +303,7 @@ import {
 	type LLMErrorPayload,
 	listenEvent,
 	type ProviderChangeRequestPayload,
+	type RecordingStartPayload,
 } from "./events";
 
 interface TypeTextResult {
@@ -484,7 +486,9 @@ export const tauriAPI = {
 		await store.save();
 	},
 
-	async onStartRecording(callback: () => void): Promise<UnlistenFn> {
+	async onStartRecording(
+		callback: (payload: RecordingStartPayload) => void,
+	): Promise<UnlistenFn> {
 		return listenEvent(AppEvents.recordingStart, callback);
 	},
 
@@ -825,5 +829,29 @@ export const configAPI = {
 	): Promise<AvailableProvidersData> => {
 		const api = createApiClient(serverUrl);
 		return api.get("api/providers").json<AvailableProvidersData>();
+	},
+
+	// =========================================================================
+	// App Context endpoints (per-client, UUID required)
+	// =========================================================================
+
+	updateAppContext: async (
+		serverUrl: string,
+		clientUUID: string,
+		context: {
+			app_name: string;
+			bundle_id?: string;
+			window_title?: string;
+			url?: string;
+			profile_id?: string;
+		},
+	): Promise<{ success: boolean; setting: string; value: string }> => {
+		const api = createApiClient(serverUrl);
+		return api
+			.put("api/config/app-context", {
+				headers: { "X-Client-UUID": clientUUID },
+				json: context,
+			})
+			.json();
 	},
 };
