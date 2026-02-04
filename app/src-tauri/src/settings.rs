@@ -56,6 +56,16 @@ pub enum StoreKey {
     SttTimeoutSeconds,
     /// Server URL
     ServerUrl,
+    /// Formatting profiles (custom profiles created by user)
+    FormattingProfiles,
+    /// App-to-profile mappings (app identifier -> profile ID)
+    AppProfileMappings,
+    /// Whether context detection is enabled
+    ContextDetectionEnabled,
+    /// Default profile ID when no app match
+    DefaultProfileId,
+    /// Auto-learned app mappings from user corrections
+    LearnedAppMappings,
 }
 
 impl StoreKey {
@@ -73,6 +83,11 @@ impl StoreKey {
             Self::AutoMuteAudio => "auto_mute_audio",
             Self::SttTimeoutSeconds => "stt_timeout_seconds",
             Self::ServerUrl => "server_url",
+            Self::FormattingProfiles => "formatting_profiles",
+            Self::AppProfileMappings => "app_profile_mappings",
+            Self::ContextDetectionEnabled => "context_detection_enabled",
+            Self::DefaultProfileId => "default_profile_id",
+            Self::LearnedAppMappings => "learned_app_mappings",
         }
     }
 }

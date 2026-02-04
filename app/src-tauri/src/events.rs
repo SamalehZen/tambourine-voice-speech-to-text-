@@ -8,6 +8,8 @@
 
 use serde::Serialize;
 
+use crate::active_window::ActiveWindowInfo;
+
 // =============================================================================
 // Event Names - Must match src/lib/events.ts
 // =============================================================================
@@ -128,4 +130,10 @@ pub struct ReconnectResultPayload {
     pub success: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RecordingStartPayload {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window_info: Option<ActiveWindowInfo>,
 }

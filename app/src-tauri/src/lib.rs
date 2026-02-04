@@ -5,6 +5,7 @@ use tauri::{
 };
 use tauri_utils::config::BackgroundThrottlingPolicy;
 
+mod active_window;
 mod audio;
 mod audio_mute;
 mod commands;
@@ -12,7 +13,7 @@ mod config_sync;
 pub mod events;
 mod history;
 
-use events::EventName;
+use events::{EventName, RecordingStartPayload};
 mod mic_capture;
 mod settings;
 mod state;
@@ -157,10 +158,14 @@ fn start_recording(
     source: &str,
 ) {
     log::info!("{source}: starting recording");
-    // Play sound BEFORE muting so it's audible
+
+    let window_info = active_window::get_active_window();
+    if let Some(ref info) = window_info {
+        log::info!("Active window: {} ({})", info.app_name, info.window_title);
+    }
+
     if sound_enabled {
         audio::play_sound(audio::SoundType::RecordingStart);
-        // Brief delay to let sound play before muting
         std::thread::sleep(std::time::Duration::from_millis(150));
     }
     if auto_mute_audio {
@@ -170,7 +175,8 @@ fn start_recording(
             }
         }
     }
-    let _ = app.emit(EventName::RecordingStart.as_str(), ());
+    let payload = RecordingStartPayload { window_info };
+    let _ = app.emit(EventName::RecordingStart.as_str(), payload);
 }
 
 /// Stop recording with sound and audio unmute handling

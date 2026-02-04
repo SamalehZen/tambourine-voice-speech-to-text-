@@ -35,10 +35,12 @@ import {
 } from "./lib/safeSendClientMessage";
 import {
 	KNOWN_SETTINGS,
+	configAPI,
 	tauriAPI,
 	toLLMProviderSelection,
 	toSTTProviderSelection,
 } from "./lib/tauri";
+import type { RecordingStartPayload } from "./lib/tauri";
 import "./overlay-global.css";
 
 const SERVER_RESPONSE_TIMEOUT_MS = 10_000;
@@ -151,13 +153,13 @@ const ErrorDisplay = ({
 	onStartRecording,
 }: {
 	onDismiss: () => void;
-	onStartRecording?: () => void;
+	onStartRecording?: (payload: RecordingStartPayload) => void;
 }) => (
 	<button
 		type="button"
 		onClick={() => {
 			onDismiss();
-			onStartRecording?.();
+			onStartRecording?.({});
 		}}
 		style={{
 			minWidth: 48,
@@ -289,23 +291,35 @@ function RecordingControl() {
 	}, [rect.width, rect.height]);
 
 	// Handle start/stop recording from hotkeys
-	const onStartRecording = useCallback(async () => {
-		// Clear error state when starting recording
-		setShowError(false);
+	const onStartRecording = useCallback(
+		async (payload: RecordingStartPayload) => {
+			setShowError(false);
 
-		// Reset accumulators for new recording
-		// Important: rawTranscriptionRef is reset here (not on BotLlmStarted)
-		// because UserTranscript events arrive DURING recording, before LLM processes
-		streamedLlmResponseChunksRef.current = "";
-		rawTranscriptionRef.current = "";
+			const windowInfo = payload.window_info;
 
-		// Always show loading indicator during mic acquisition and recording start
-		// This ensures accurate UX feedback even when mic is pre-warmed
-		setIsMicAcquiring(true);
+			if (windowInfo) {
+				try {
+					const serverUrl = await tauriAPI.getServerUrl();
+					const clientUUID = await tauriAPI.getClientUUID();
+					if (serverUrl && clientUUID) {
+						await configAPI.updateAppContext(serverUrl, clientUUID, {
+							app_name: windowInfo.app_name,
+							bundle_id: windowInfo.bundle_id,
+							window_title: windowInfo.window_title,
+							url: windowInfo.url,
+						});
+					}
+				} catch (error) {
+					console.warn("[Recording] Failed to set app context:", error);
+				}
+			}
 
-		// Allow React to process the state update and show the loading indicator
-		// before we start the async mic operations
-		await new Promise((resolve) => setTimeout(resolve, 0));
+			streamedLlmResponseChunksRef.current = "";
+			rawTranscriptionRef.current = "";
+
+			setIsMicAcquiring(true);
+
+			await new Promise((resolve) => setTimeout(resolve, 0));
 
 		try {
 			// Use native audio capture for low-latency mic acquisition
@@ -797,7 +811,7 @@ function RecordingControl() {
 		if (displayState === "recording") {
 			onStopRecording();
 		} else if (displayState === "idle") {
-			onStartRecording();
+			onStartRecording({});
 		}
 	}, [displayState, onStartRecording, onStopRecording]);
 
