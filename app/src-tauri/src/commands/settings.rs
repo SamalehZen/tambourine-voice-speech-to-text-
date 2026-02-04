@@ -61,6 +61,7 @@ pub async fn register_shortcuts(_app: AppHandle) -> Result<ShortcutRegistrationR
         toggle_registered: true,
         hold_registered: true,
         paste_last_registered: true,
+        translation_registered: true,
         errors: ShortcutErrors::default(),
     })
 }
@@ -131,6 +132,11 @@ pub fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
             StoreKey::PasteLastHotkey,
             HotkeyConfig::default_paste_last(),
         ),
+        translation_hotkey: get_setting_from_store(
+            &app,
+            StoreKey::TranslationHotkey,
+            HotkeyConfig::default_translation(),
+        ),
         selected_mic_id: get_setting_from_store(&app, StoreKey::SelectedMicId, None),
         sound_enabled: get_setting_from_store(&app, StoreKey::SoundEnabled, true),
         cleanup_prompt_sections: get_setting_from_store(
@@ -146,6 +152,26 @@ pub fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
             &app,
             StoreKey::ServerUrl,
             DEFAULT_SERVER_URL.to_string(),
+        ),
+        translation_enabled: get_setting_from_store(&app, StoreKey::TranslationEnabled, true),
+        translation_target_languages: get_setting_from_store(
+            &app,
+            StoreKey::TranslationTargetLanguages,
+            vec![
+                "en".to_string(),
+                "zh".to_string(),
+                "es".to_string(),
+                "de".to_string(),
+                "fr".to_string(),
+                "ar".to_string(),
+                "ja".to_string(),
+                "ko".to_string(),
+            ],
+        ),
+        translation_default_language: get_setting_from_store(
+            &app,
+            StoreKey::TranslationDefaultLanguage,
+            "en".to_string(),
         ),
     })
 }
@@ -364,6 +390,11 @@ pub async fn reset_hotkeys_to_defaults(app: AppHandle) -> Result<(), String> {
         &app,
         StoreKey::PasteLastHotkey,
         &HotkeyConfig::default_paste_last(),
+    )?;
+    crate::save_setting_to_store(
+        &app,
+        StoreKey::TranslationHotkey,
+        &HotkeyConfig::default_translation(),
     )?;
     log::info!("Reset all hotkeys to defaults");
     Ok(())

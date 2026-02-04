@@ -112,7 +112,7 @@ export function useSettings() {
 	});
 }
 
-type HotkeyType = "toggle" | "hold" | "paste_last";
+type HotkeyType = "toggle" | "hold" | "paste_last" | "translation";
 
 // Shared internal function for hotkey mutations
 async function executeHotkeyUpdate(
@@ -182,6 +182,30 @@ export function useUpdatePasteLastHotkey() {
 		},
 		onError: (error) => {
 			showSettingsError(`Failed to update paste last hotkey: ${error.message}`);
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: ["settings"] });
+			queryClient.refetchQueries({ queryKey: ["shortcutErrors"] });
+		},
+	});
+}
+
+export function useUpdateTranslationHotkey() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (hotkey: HotkeyConfig) =>
+			executeHotkeyUpdate(
+				"translation",
+				tauriAPI.updateTranslationHotkey,
+				hotkey,
+			),
+		onSuccess: () => {
+			showSettingsSuccess("Translation hotkey updated successfully");
+		},
+		onError: (error) => {
+			showSettingsError(
+				`Failed to update translation hotkey: ${error.message}`,
+			);
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: ["settings"] });
@@ -287,6 +311,7 @@ const HOTKEY_TYPE_LABELS = {
 	toggle: "Toggle",
 	hold: "Hold",
 	paste_last: "Paste last",
+	translation: "Translation",
 } as const;
 
 export function useSetHotkeyEnabled() {
@@ -296,7 +321,7 @@ export function useSetHotkeyEnabled() {
 			hotkeyType,
 			enabled,
 		}: {
-			hotkeyType: "toggle" | "hold" | "paste_last";
+			hotkeyType: "toggle" | "hold" | "paste_last" | "translation";
 			enabled: boolean;
 		}) => {
 			await tauriAPI.setHotkeyEnabled(hotkeyType, enabled);

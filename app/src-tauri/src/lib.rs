@@ -48,6 +48,8 @@ pub enum ShortcutEvent {
     HoldReleased,
     PastePressed,
     PasteReleased,
+    TranslationPressed,
+    TranslationReleased,
 }
 
 // Define NSPanel type for overlay on macOS
@@ -113,6 +115,11 @@ fn match_hotkey(app: &AppHandle, shortcut_str: &str) -> Option<HotkeyType> {
         StoreKey::PasteLastHotkey,
         HotkeyConfig::default_paste_last(),
     );
+    let translation_hotkey: HotkeyConfig = get_setting_from_store(
+        app,
+        StoreKey::TranslationHotkey,
+        HotkeyConfig::default_translation(),
+    );
 
     if shortcut_str == get_normalized_shortcut_string(&toggle_hotkey, HotkeyConfig::default_toggle)
     {
@@ -125,6 +132,10 @@ fn match_hotkey(app: &AppHandle, shortcut_str: &str) -> Option<HotkeyType> {
         == get_normalized_shortcut_string(&paste_last_hotkey, HotkeyConfig::default_paste_last)
     {
         Some(HotkeyType::PasteLast)
+    } else if shortcut_str
+        == get_normalized_shortcut_string(&translation_hotkey, HotkeyConfig::default_translation)
+    {
+        Some(HotkeyType::Translation)
     } else {
         None
     }
@@ -242,6 +253,8 @@ fn map_to_shortcut_event(
         (HotkeyType::Hold, TauriShortcutState::Released) => ShortcutEvent::HoldReleased,
         (HotkeyType::PasteLast, TauriShortcutState::Pressed) => ShortcutEvent::PastePressed,
         (HotkeyType::PasteLast, TauriShortcutState::Released) => ShortcutEvent::PasteReleased,
+        (HotkeyType::Translation, TauriShortcutState::Pressed) => ShortcutEvent::TranslationPressed,
+        (HotkeyType::Translation, TauriShortcutState::Released) => ShortcutEvent::TranslationReleased,
     })
 }
 
@@ -327,6 +340,15 @@ pub fn handle_shortcut_event(app: &AppHandle, shortcut: &Shortcut, event: TauriS
         (ShortcutState::PreparingToRecordViaToggle, ShortcutEvent::TogglePressed) => {
             ShortcutState::PreparingToRecordViaToggle
         }
+        // Translation: emit event on release (simple trigger, no state change needed)
+        (ShortcutState::Idle, ShortcutEvent::TranslationPressed) => {
+            ShortcutState::Idle
+        }
+        (ShortcutState::Idle, ShortcutEvent::TranslationReleased) => {
+            log::info!("Translation: triggering translation mode");
+            let _ = app.emit(EventName::TranslationTrigger.as_str(), ());
+            ShortcutState::Idle
+        }
         (current, event) => {
             log::trace!("Ignoring event {event:?} in state {current:?}");
             *current
@@ -374,6 +396,24 @@ fn resume_native_mic(state: tauri::State<'_, MicCaptureManager>) {
 #[tauri::command]
 fn list_native_mic_devices(state: tauri::State<'_, MicCaptureManager>) -> Vec<AudioDeviceInfo> {
     state.capture().list_devices()
+}
+
+/// Resize overlay window for language selector (expanded view)
+#[tauri::command]
+async fn resize_overlay_for_language_select(window: tauri::Window) -> Result<(), String> {
+    window
+        .set_size(tauri::Size::Logical(tauri::LogicalSize::new(320.0, 280.0)))
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Resize overlay window back to normal (compact view)
+#[tauri::command]
+async fn resize_overlay_to_normal(window: tauri::Window) -> Result<(), String> {
+    window
+        .set_size(tauri::Size::Logical(tauri::LogicalSize::new(200.0, 80.0)))
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -442,6 +482,8 @@ pub fn run() {
             pause_native_mic,
             resume_native_mic,
             list_native_mic_devices,
+            resize_overlay_for_language_select,
+            resize_overlay_to_normal,
         ])
         .setup(|app| {
             // Initialize history storage
@@ -638,15 +680,22 @@ pub(crate) fn do_register_shortcuts(app: &AppHandle) -> state::ShortcutRegistrat
         StoreKey::PasteLastHotkey,
         HotkeyConfig::default_paste_last(),
     );
+    let mut translation_hotkey: HotkeyConfig = get_setting_from_store(
+        app,
+        StoreKey::TranslationHotkey,
+        HotkeyConfig::default_translation(),
+    );
 
     log::info!(
-        "Registering shortcuts - Toggle: {} (enabled: {}), Hold: {} (enabled: {}), PasteLast: {} (enabled: {})",
+        "Registering shortcuts - Toggle: {} (enabled: {}), Hold: {} (enabled: {}), PasteLast: {} (enabled: {}), Translation: {} (enabled: {})",
         toggle_hotkey.to_shortcut_string(),
         toggle_hotkey.enabled,
         hold_hotkey.to_shortcut_string(),
         hold_hotkey.enabled,
         paste_last_hotkey.to_shortcut_string(),
-        paste_last_hotkey.enabled
+        paste_last_hotkey.enabled,
+        translation_hotkey.to_shortcut_string(),
+        translation_hotkey.enabled
     );
 
     let shortcut_manager = app.global_shortcut();
@@ -656,6 +705,7 @@ pub(crate) fn do_register_shortcuts(app: &AppHandle) -> state::ShortcutRegistrat
         toggle_registered: false,
         hold_registered: false,
         paste_last_registered: false,
+        translation_registered: false,
         errors: ShortcutErrors::default(),
     };
 
@@ -711,6 +761,14 @@ pub(crate) fn do_register_shortcuts(app: &AppHandle) -> state::ShortcutRegistrat
         HotkeyConfig::default_paste_last,
         &mut result.paste_last_registered,
         &mut result.errors.paste_last_error,
+    );
+    try_register(
+        &mut translation_hotkey,
+        "Translation",
+        StoreKey::TranslationHotkey,
+        HotkeyConfig::default_translation,
+        &mut result.translation_registered,
+        &mut result.errors.translation_error,
     );
 
     // Store errors in app state

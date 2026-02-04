@@ -17,11 +17,15 @@ pub struct ShortcutErrors {
     pub toggle_error: Option<String>,
     pub hold_error: Option<String>,
     pub paste_last_error: Option<String>,
+    pub translation_error: Option<String>,
 }
 
 impl ShortcutErrors {
     pub fn has_any_error(&self) -> bool {
-        self.toggle_error.is_some() || self.hold_error.is_some() || self.paste_last_error.is_some()
+        self.toggle_error.is_some()
+            || self.hold_error.is_some()
+            || self.paste_last_error.is_some()
+            || self.translation_error.is_some()
     }
 }
 
@@ -30,6 +34,7 @@ pub struct ShortcutRegistrationResult {
     pub toggle_registered: bool,
     pub hold_registered: bool,
     pub paste_last_registered: bool,
+    pub translation_registered: bool,
     pub errors: ShortcutErrors,
 }
 
