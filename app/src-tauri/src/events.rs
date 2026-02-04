@@ -42,6 +42,8 @@ pub enum EventName {
     HistoryChanged,
     /// Rust → Overlay: Native audio data from mic capture
     NativeAudioData,
+    /// Rust → Overlay: Translation mode triggered
+    TranslationTrigger,
 }
 
 impl EventName {
@@ -61,6 +63,7 @@ impl EventName {
             Self::ReconnectResult => "reconnect-result",
             Self::HistoryChanged => "history-changed",
             Self::NativeAudioData => "native-audio-data",
+            Self::TranslationTrigger => "translation-trigger",
         }
     }
 }

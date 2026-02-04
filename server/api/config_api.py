@@ -448,3 +448,61 @@ async def update_app_context(
         f"{context.app_name} -> {profile.id}"
     )
     return ConfigSuccessResponse(setting="app-context", value=profile.id)
+
+
+class TranslationModeRequest(BaseModel):
+    """Request body for setting translation mode."""
+
+    target_language: str | None = None
+
+
+@config_router.put(
+    "/config/translation",
+    response_model=ConfigSuccessResponse,
+    responses={
+        404: {"model": ConfigErrorResponse, "description": "Client not connected"},
+    },
+)
+@limiter.limit(RATE_LIMIT_RUNTIME_CONFIG, key_func=get_ip_only)
+async def set_translation_mode(
+    body: TranslationModeRequest,
+    request: Request,
+    x_client_uuid: Annotated[str, Header()],
+) -> ConfigSuccessResponse:
+    """Set or clear translation mode for a connected client.
+
+    When target_language is provided, the LLM will translate the user's speech
+    to the specified language. When target_language is None, translation mode
+    is disabled.
+
+    Args:
+        body: Request body containing the target language (or None to disable)
+        request: FastAPI request object
+        x_client_uuid: Client UUID from X-Client-UUID header
+
+    Returns:
+        Success response indicating translation mode was updated
+
+    Raises:
+        HTTPException: 404 if client not connected or pipeline not ready
+    """
+    client_manager = get_client_manager(request)
+    connection = client_manager.get_connection(x_client_uuid)
+
+    if connection is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "Client not connected", "code": "CLIENT_NOT_FOUND"},
+        )
+
+    if connection.context_manager is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "Pipeline not ready", "code": "PIPELINE_NOT_READY"},
+        )
+
+    connection.context_manager.set_translation_mode(body.target_language)
+
+    status_value = body.target_language if body.target_language else "disabled"
+    logger.info(f"Set translation mode for client {x_client_uuid}: {status_value}")
+    return ConfigSuccessResponse(setting="translation", value=status_value)

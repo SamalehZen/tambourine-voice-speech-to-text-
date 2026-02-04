@@ -42,6 +42,14 @@ class AppContext:
     additional_context: str | None = None
 
 
+@dataclass
+class TranslationConfig:
+    """Configuration for translation mode."""
+
+    target_language: str
+    enabled: bool = True
+
+
 class DictationContextManager:
     """Manages LLM context for dictation with custom prompt support.
 
@@ -65,6 +73,7 @@ class DictationContextManager:
         self._dictionary_custom: str | None = None
 
         self._app_context: AppContext | None = None
+        self._translation_config: TranslationConfig | None = None
 
         self._context = LLMContext()
 
@@ -88,11 +97,17 @@ class DictationContextManager:
             dictionary_custom=self._dictionary_custom,
         )
 
+        prompt_parts = [base_prompt]
+
         if self._app_context:
             context_section = self._build_app_context_section()
-            return f"{base_prompt}\n\n{context_section}"
+            prompt_parts.append(context_section)
 
-        return base_prompt
+        if self._translation_config and self._translation_config.enabled:
+            translation_section = self._build_translation_section()
+            prompt_parts.append(translation_section)
+
+        return "\n\n".join(prompt_parts)
 
     def _build_app_context_section(self) -> str:
         """Build the app context section for the system prompt."""
@@ -133,6 +148,42 @@ class DictationContextManager:
 
         return "\n".join(context_parts)
 
+    def _build_translation_section(self) -> str:
+        """Build the translation section for the system prompt."""
+        if not self._translation_config:
+            return ""
+
+        lang_instructions = {
+            "zh": "Translate the user's speech to Simplified Chinese (简体中文). Maintain the tone and formality level.",
+            "en": "Translate the user's speech to English. Maintain the tone and formality level.",
+            "es": "Translate the user's speech to Spanish (Español). Maintain the tone and formality level.",
+            "de": "Translate the user's speech to German (Deutsch). Maintain the tone and formality level.",
+            "fr": "Translate the user's speech to French (Français). Maintain the tone and formality level.",
+            "ar": "Translate the user's speech to Arabic (العربية). Maintain the tone and formality level. Use Modern Standard Arabic.",
+            "ja": "Translate the user's speech to Japanese (日本語). Maintain the tone and formality level.",
+            "ko": "Translate the user's speech to Korean (한국어). Maintain the tone and formality level.",
+            "pt": "Translate the user's speech to Portuguese (Português). Maintain the tone and formality level.",
+            "ru": "Translate the user's speech to Russian (Русский). Maintain the tone and formality level.",
+            "it": "Translate the user's speech to Italian (Italiano). Maintain the tone and formality level.",
+            "hi": "Translate the user's speech to Hindi (हिन्दी). Maintain the tone and formality level.",
+        }
+
+        target = self._translation_config.target_language
+        base_instruction = lang_instructions.get(
+            target, f"Translate the user's speech to {target}."
+        )
+
+        return f"""## Translation Mode Active
+{base_instruction}
+
+IMPORTANT RULES:
+1. First understand what the user said in their language
+2. Translate the MEANING, not word-for-word
+3. Apply the context-aware formatting AFTER translation
+4. If user is in an email app, output should be a formal email IN THE TARGET LANGUAGE
+5. Preserve technical terms, names, and code identifiers without translation
+6. Match the original tone (formal/casual) in the translation"""
+
     def set_app_context(
         self,
         app_name: str,
@@ -157,6 +208,28 @@ class DictationContextManager:
         """Clear the current app context."""
         self._app_context = None
         logger.debug("App context cleared")
+
+    def set_translation_mode(self, target_language: str | None) -> None:
+        """Enable or disable translation mode with target language.
+
+        Args:
+            target_language: The target language code (e.g., 'zh', 'en', 'es'),
+                           or None to disable translation mode.
+        """
+        if target_language is None:
+            self._translation_config = None
+            logger.info("Translation mode disabled")
+        else:
+            self._translation_config = TranslationConfig(
+                target_language=target_language,
+                enabled=True,
+            )
+            logger.info(f"Translation mode enabled: target={target_language}")
+
+    def clear_translation_mode(self) -> None:
+        """Clear the translation mode configuration."""
+        self._translation_config = None
+        logger.debug("Translation mode cleared")
 
     def set_prompt_sections(
         self,

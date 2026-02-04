@@ -5,6 +5,7 @@ import {
 	DEFAULT_HOLD_HOTKEY,
 	DEFAULT_PASTE_LAST_HOTKEY,
 	DEFAULT_TOGGLE_HOTKEY,
+	DEFAULT_TRANSLATION_HOTKEY,
 } from "../../lib/hotkeyDefaults";
 import {
 	useResetHotkeysToDefaults,
@@ -14,11 +15,12 @@ import {
 	useUpdateHoldHotkey,
 	useUpdatePasteLastHotkey,
 	useUpdateToggleHotkey,
+	useUpdateTranslationHotkey,
 } from "../../lib/queries";
 import type { HotkeyConfig } from "../../lib/tauri";
 import { HotkeyInput } from "../HotkeyInput";
 
-type RecordingInput = "toggle" | "hold" | "paste_last" | null;
+type RecordingInput = "toggle" | "hold" | "paste_last" | "translation" | null;
 
 export function HotkeySettings() {
 	const { data: settings, isLoading } = useSettings();
@@ -26,17 +28,17 @@ export function HotkeySettings() {
 	const updateToggleHotkey = useUpdateToggleHotkey();
 	const updateHoldHotkey = useUpdateHoldHotkey();
 	const updatePasteLastHotkey = useUpdatePasteLastHotkey();
+	const updateTranslationHotkey = useUpdateTranslationHotkey();
 	const setHotkeyEnabled = useSetHotkeyEnabled();
 	const resetHotkeys = useResetHotkeysToDefaults();
 
-	// Track which input is currently recording (only one at a time)
 	const [recordingInput, setRecordingInput] = useState<RecordingInput>(null);
 
-	// Collect any errors from mutations
 	const error =
 		updateToggleHotkey.error ||
 		updateHoldHotkey.error ||
 		updatePasteLastHotkey.error ||
+		updateTranslationHotkey.error ||
 		setHotkeyEnabled.error ||
 		resetHotkeys.error;
 
@@ -50,6 +52,10 @@ export function HotkeySettings() {
 
 	const handlePasteLastHotkeyChange = (config: HotkeyConfig) => {
 		updatePasteLastHotkey.mutate(config);
+	};
+
+	const handleTranslationHotkeyChange = (config: HotkeyConfig) => {
+		updateTranslationHotkey.mutate(config);
 	};
 
 	return (
@@ -121,6 +127,26 @@ export function HotkeySettings() {
 						enabledLoading={setHotkeyEnabled.isPending}
 						registrationError={shortcutErrors?.paste_last_error}
 						mutationStatus={updatePasteLastHotkey.status}
+					/>
+				</div>
+
+				<div style={{ marginTop: 20 }}>
+					<HotkeyInput
+						label="Voice Translation"
+						description="Open language selector and translate speech to selected language"
+						value={settings?.translation_hotkey ?? DEFAULT_TRANSLATION_HOTKEY}
+						onChange={handleTranslationHotkeyChange}
+						disabled={isLoading || updateTranslationHotkey.isPending}
+						isRecording={recordingInput === "translation"}
+						onStartRecording={() => setRecordingInput("translation")}
+						onStopRecording={() => setRecordingInput(null)}
+						enabled={settings?.translation_hotkey?.enabled ?? true}
+						onEnabledChange={(enabled) =>
+							setHotkeyEnabled.mutate({ hotkeyType: "translation", enabled })
+						}
+						enabledLoading={setHotkeyEnabled.isPending}
+						registrationError={shortcutErrors?.translation_error}
+						mutationStatus={updateTranslationHotkey.status}
 					/>
 				</div>
 

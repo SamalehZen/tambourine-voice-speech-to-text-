@@ -336,7 +336,9 @@ export function detectProfileForApp(
 	windowInfo: ActiveWindowInfo,
 ): FormattingProfile | null {
 	if (windowInfo.url) {
-		for (const [urlPattern, profileId] of Object.entries(URL_PROFILE_MAPPINGS)) {
+		for (const [urlPattern, profileId] of Object.entries(
+			URL_PROFILE_MAPPINGS,
+		)) {
 			if (windowInfo.url.includes(urlPattern)) {
 				const profile = DEFAULT_PROFILES.find((p) => p.id === profileId);
 				if (profile) return profile;

@@ -321,12 +321,14 @@ export interface ShortcutErrors {
 	toggle_error: string | null;
 	hold_error: string | null;
 	paste_last_error: string | null;
+	translation_error: string | null;
 }
 
 export interface ShortcutRegistrationResult {
 	toggle_registered: boolean;
 	hold_registered: boolean;
 	paste_last_registered: boolean;
+	translation_registered: boolean;
 	errors: ShortcutErrors;
 }
 
@@ -387,6 +389,7 @@ export interface AppSettings {
 	toggle_hotkey: HotkeyConfig;
 	hold_hotkey: HotkeyConfig;
 	paste_last_hotkey: HotkeyConfig;
+	translation_hotkey: HotkeyConfig;
 	selected_mic_id: string | null;
 	sound_enabled: boolean;
 	cleanup_prompt_sections: CleanupPromptSections | null;
@@ -395,6 +398,9 @@ export interface AppSettings {
 	auto_mute_audio: boolean;
 	stt_timeout_seconds: number | null;
 	server_url: string;
+	translation_enabled: boolean;
+	translation_target_languages: string[];
+	translation_default_language: string;
 }
 
 export const DEFAULT_SERVER_URL = "http://127.0.0.1:8765";
@@ -424,12 +430,13 @@ export function hotkeyIsSameAs(a: HotkeyConfig, b: HotkeyConfig): boolean {
 	);
 }
 
-export type HotkeyType = "toggle" | "hold" | "paste_last";
+export type HotkeyType = "toggle" | "hold" | "paste_last" | "translation";
 
 const HOTKEY_LABELS: Record<HotkeyType, string> = {
 	toggle: "toggle",
 	hold: "hold",
 	paste_last: "paste last",
+	translation: "translation",
 };
 
 /**
@@ -519,6 +526,13 @@ export const tauriAPI = {
 		});
 	},
 
+	async updateTranslationHotkey(hotkey: HotkeyConfig): Promise<void> {
+		return invoke("update_hotkey", {
+			hotkeyType: "translation",
+			config: hotkey,
+		});
+	},
+
 	async updateSelectedMic(micId: string | null): Promise<void> {
 		return invoke("update_selected_mic", { micId });
 	},
@@ -574,7 +588,7 @@ export const tauriAPI = {
 	},
 
 	async setHotkeyEnabled(
-		hotkeyType: "toggle" | "hold" | "paste_last",
+		hotkeyType: "toggle" | "hold" | "paste_last" | "translation",
 		enabled: boolean,
 	): Promise<void> {
 		return invoke("set_hotkey_enabled", { hotkeyType, enabled });
@@ -851,6 +865,24 @@ export const configAPI = {
 			.put("api/config/app-context", {
 				headers: { "X-Client-UUID": clientUUID },
 				json: context,
+			})
+			.json();
+	},
+
+	// =========================================================================
+	// Translation endpoints (per-client, UUID required)
+	// =========================================================================
+
+	setTranslationMode: async (
+		serverUrl: string,
+		clientUUID: string,
+		targetLanguage: string | null,
+	): Promise<{ success: boolean; setting: string }> => {
+		const api = createApiClient(serverUrl);
+		return api
+			.put("api/config/translation", {
+				headers: { "X-Client-UUID": clientUUID },
+				json: { target_language: targetLanguage },
 			})
 			.json();
 	},

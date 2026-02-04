@@ -13,6 +13,7 @@ import {
 import type { SmallWebRTCTransport } from "@pipecat-ai/small-webrtc-transport";
 import { ThemeProvider, UserAudioComponent } from "@pipecat-ai/voice-ui-kit";
 import { useQueryClient } from "@tanstack/react-query";
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useDrag } from "@use-gesture/react";
 import { AlertCircle } from "lucide-react";
@@ -20,6 +21,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { match } from "ts-pattern";
 import { z } from "zod";
 import Logo from "./assets/logo.svg?react";
+import {
+	LanguageSelector,
+	SUPPORTED_LANGUAGES,
+	TranslationIndicator,
+	type TranslationLanguage,
+} from "./components/overlay/LanguageSelector";
 import {
 	ConnectionProvider,
 	useConnectionClient,
@@ -33,14 +40,14 @@ import {
 	safeSendClientMessage,
 	sendConfigMessages,
 } from "./lib/safeSendClientMessage";
+import type { RecordingStartPayload } from "./lib/tauri";
 import {
-	KNOWN_SETTINGS,
 	configAPI,
+	KNOWN_SETTINGS,
 	tauriAPI,
 	toLLMProviderSelection,
 	toSTTProviderSelection,
 } from "./lib/tauri";
-import type { RecordingStartPayload } from "./lib/tauri";
 import "./overlay-global.css";
 
 const SERVER_RESPONSE_TIMEOUT_MS = 10_000;
@@ -259,6 +266,14 @@ function RecordingControl() {
 	// Error display state (persists until user records again)
 	const [showError, setShowError] = useState(false);
 
+	// Translation mode state
+	const [overlayMode, setOverlayMode] = useState<"normal" | "language-select">(
+		"normal",
+	);
+	const [selectedTranslationLang, setSelectedTranslationLang] =
+		useState<TranslationLanguage | null>(null);
+	const [isTranslationMode, setIsTranslationMode] = useState(false);
+
 	const { start: startResponseTimeout, clear: clearResponseTimeout } =
 		useTimeout(() => {
 			if (displayState === "processing") {
@@ -321,78 +336,80 @@ function RecordingControl() {
 
 			await new Promise((resolve) => setTimeout(resolve, 0));
 
-		try {
-			// Use native audio capture for low-latency mic acquisition
-			if (isNativeAudioReady) {
-				const deviceId = settings?.selected_mic_id ?? undefined;
+			try {
+				// Use native audio capture for low-latency mic acquisition
+				if (isNativeAudioReady) {
+					const deviceId = settings?.selected_mic_id ?? undefined;
 
-				// Start native capture (skip if pre-warmed)
-				if (!micPreparedRef.current) {
-					await startNativeCapture(deviceId);
-					lastMicIdRef.current = deviceId ?? null;
-				}
+					// Start native capture (skip if pre-warmed)
+					if (!micPreparedRef.current) {
+						await startNativeCapture(deviceId);
+						lastMicIdRef.current = deviceId ?? null;
+					}
 
-				// Inject the native audio track into WebRTC
-				if (client && nativeAudioTrack) {
-					const transport = client.transport as SmallWebRTCTransport;
-					const pc = (transport as unknown as { pc?: RTCPeerConnection }).pc;
-					if (pc) {
-						const audioSender = pc
-							.getSenders()
-							.find(
-								(s) =>
-									s.track?.kind === "audio" ||
-									pc
-										.getTransceivers()
-										.some(
-											(t) =>
-												t.sender === s && t.receiver.track?.kind === "audio",
-										),
-							);
+					// Inject the native audio track into WebRTC
+					if (client && nativeAudioTrack) {
+						const transport = client.transport as SmallWebRTCTransport;
+						const pc = (transport as unknown as { pc?: RTCPeerConnection }).pc;
+						if (pc) {
+							const audioSender = pc
+								.getSenders()
+								.find(
+									(s) =>
+										s.track?.kind === "audio" ||
+										pc
+											.getTransceivers()
+											.some(
+												(t) =>
+													t.sender === s && t.receiver.track?.kind === "audio",
+											),
+								);
 
-						if (audioSender) {
-							await audioSender.replaceTrack(nativeAudioTrack);
-						} else {
-							const stream = new MediaStream([nativeAudioTrack]);
-							pc.addTrack(nativeAudioTrack, stream);
+							if (audioSender) {
+								await audioSender.replaceTrack(nativeAudioTrack);
+							} else {
+								const stream = new MediaStream([nativeAudioTrack]);
+								pc.addTrack(nativeAudioTrack, stream);
+							}
 						}
 					}
 				}
-			}
 
-			// Reset prepared state for next recording
-			micPreparedRef.current = false;
+				// Reset prepared state for next recording
+				micPreparedRef.current = false;
 
-			// Enable mic and transition to recording state
-			if (client) {
-				try {
-					client.enableMic(true);
-				} catch (error) {
-					console.warn("[Recording] Failed to enable mic:", error);
-					return;
+				// Enable mic and transition to recording state
+				if (client) {
+					try {
+						client.enableMic(true);
+					} catch (error) {
+						console.warn("[Recording] Failed to enable mic:", error);
+						return;
+					}
+					send({ type: "START_RECORDING" });
+
+					// Signal server to start turn management
+					// This is required for server-side buffer management and turn detection
+					// Use safe send to detect communication failures and trigger reconnection
+					safeSendClientMessage(client, "start-recording", {}, (error) =>
+						send({ type: "COMMUNICATION_ERROR", error }),
+					);
 				}
-				send({ type: "START_RECORDING" });
-
-				// Signal server to start turn management
-				// This is required for server-side buffer management and turn detection
-				// Use safe send to detect communication failures and trigger reconnection
-				safeSendClientMessage(client, "start-recording", {}, (error) =>
-					send({ type: "COMMUNICATION_ERROR", error }),
-				);
+			} catch (error) {
+				console.warn("[Recording] Failed to start recording:", error);
+			} finally {
+				setIsMicAcquiring(false);
 			}
-		} catch (error) {
-			console.warn("[Recording] Failed to start recording:", error);
-		} finally {
-			setIsMicAcquiring(false);
-		}
-	}, [
-		client,
-		settings?.selected_mic_id,
-		isNativeAudioReady,
-		nativeAudioTrack,
-		startNativeCapture,
-		send,
-	]);
+		},
+		[
+			client,
+			settings?.selected_mic_id,
+			isNativeAudioReady,
+			nativeAudioTrack,
+			startNativeCapture,
+			send,
+		],
+	);
 
 	const onStopRecording = useCallback(() => {
 		// Stop native audio capture and reset state so next recording starts fresh
@@ -521,6 +538,92 @@ function RecordingControl() {
 		isNativeAudioReady,
 		startNativeCapture,
 	]);
+
+	// Listen for translation trigger event from Rust
+	useEffect(() => {
+		let unlisten: (() => void) | undefined;
+
+		const setup = async () => {
+			unlisten = await listen("translation-trigger", async () => {
+				console.log("[Translation] Translation trigger received");
+				if (displayState === "idle") {
+					setOverlayMode("language-select");
+					try {
+						await invoke("resize_overlay_for_language_select");
+					} catch (error) {
+						console.warn("[Translation] Failed to resize overlay:", error);
+					}
+				}
+			});
+		};
+
+		setup();
+
+		return () => {
+			unlisten?.();
+		};
+	}, [displayState]);
+
+	// Handle language selection for translation
+	const handleLanguageSelect = useCallback(
+		async (lang: TranslationLanguage) => {
+			console.log("[Translation] Selected language:", lang.code);
+
+			try {
+				// Set translation mode on server
+				const serverUrl = await tauriAPI.getServerUrl();
+				const clientUUID = await tauriAPI.getClientUUID();
+				if (serverUrl && clientUUID) {
+					await configAPI.setTranslationMode(serverUrl, clientUUID, lang.code);
+				}
+			} catch (error) {
+				console.warn("[Translation] Failed to set translation mode:", error);
+			}
+
+			// Update local state
+			setSelectedTranslationLang(lang);
+			setIsTranslationMode(true);
+			setOverlayMode("normal");
+
+			// Resize overlay back to normal
+			try {
+				await invoke("resize_overlay_to_normal");
+			} catch (error) {
+				console.warn("[Translation] Failed to resize overlay:", error);
+			}
+
+			// Auto-start recording
+			onStartRecording({});
+		},
+		[onStartRecording],
+	);
+
+	// Handle cancel language selection
+	const handleCancelLanguageSelect = useCallback(async () => {
+		setOverlayMode("normal");
+		try {
+			await invoke("resize_overlay_to_normal");
+		} catch (error) {
+			console.warn("[Translation] Failed to resize overlay:", error);
+		}
+	}, []);
+
+	// Reset translation mode after recording complete
+	const resetTranslationMode = useCallback(async () => {
+		if (isTranslationMode) {
+			try {
+				const serverUrl = await tauriAPI.getServerUrl();
+				const clientUUID = await tauriAPI.getClientUUID();
+				if (serverUrl && clientUUID) {
+					await configAPI.setTranslationMode(serverUrl, clientUUID, null);
+				}
+			} catch (error) {
+				console.warn("[Translation] Failed to reset translation mode:", error);
+			}
+			setSelectedTranslationLang(null);
+			setIsTranslationMode(false);
+		}
+	}, [isTranslationMode]);
 
 	// Listen for settings changes from main window and invalidate cache to trigger sync
 	useEffect(() => {
@@ -720,7 +823,14 @@ function RecordingControl() {
 				addHistoryEntry.mutate({ text, rawText });
 			}
 			send({ type: "RESPONSE_RECEIVED" });
-		}, [clearResponseTimeout, typeTextMutation, addHistoryEntry, send]),
+			resetTranslationMode();
+		}, [
+			clearResponseTimeout,
+			typeTextMutation,
+			addHistoryEntry,
+			send,
+			resetTranslationMode,
+		]),
 	);
 
 	// Server message handler (for custom messages: config-updated, recording-complete, etc.)
@@ -853,6 +963,31 @@ function RecordingControl() {
 
 	const viewState = showError ? "error" : isLoadingState ? "loading" : "active";
 
+	// Show language selector when in translation selection mode
+	if (overlayMode === "language-select") {
+		return (
+			<div
+				ref={containerRef}
+				role="application"
+				style={{
+					width: 300,
+					height: 260,
+					backgroundColor: "rgba(0, 0, 0, 0.95)",
+					borderRadius: 12,
+					border: "1px solid rgba(128, 128, 128, 0.9)",
+					padding: 4,
+					userSelect: "none",
+				}}
+			>
+				<LanguageSelector
+					languages={SUPPORTED_LANGUAGES}
+					onSelect={handleLanguageSelect}
+					onCancel={handleCancelLanguageSelect}
+				/>
+			</div>
+		);
+	}
+
 	return (
 		<div
 			ref={containerRef}
@@ -881,22 +1016,27 @@ function RecordingControl() {
 				))
 				.with("loading", () => LoadingSpinner)
 				.with("active", () => (
-					<UserAudioComponent
-						onClick={handleClick}
-						isMicEnabled={displayState === "recording"}
-						noIcon={true}
-						noDevicePicker={true}
-						noVisualizer={displayState !== "recording"}
-						visualizerProps={{
-							barColor: "#eeeeee",
-							backgroundColor: "#000000",
-						}}
-						classNames={{
-							button: "bg-black text-white hover:bg-gray-900",
-						}}
-					>
-						{displayState !== "recording" && <Logo className="size-5" />}
-					</UserAudioComponent>
+					<div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+						<UserAudioComponent
+							onClick={handleClick}
+							isMicEnabled={displayState === "recording"}
+							noIcon={true}
+							noDevicePicker={true}
+							noVisualizer={displayState !== "recording"}
+							visualizerProps={{
+								barColor: "#eeeeee",
+								backgroundColor: "#000000",
+							}}
+							classNames={{
+								button: "bg-black text-white hover:bg-gray-900",
+							}}
+						>
+							{displayState !== "recording" && <Logo className="size-5" />}
+						</UserAudioComponent>
+						{isTranslationMode && selectedTranslationLang && (
+							<TranslationIndicator targetLang={selectedTranslationLang} />
+						)}
+					</div>
 				))
 				.exhaustive()}
 		</div>

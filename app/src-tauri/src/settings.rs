@@ -27,6 +27,9 @@ pub const DEFAULT_HOLD_KEY: &str = "Backquote";
 /// Default key for paste last transcription (Ctrl+Alt+.)
 pub const DEFAULT_PASTE_LAST_KEY: &str = "Period";
 
+/// Default key for translation mode (Ctrl+Alt+T)
+pub const DEFAULT_TRANSLATION_KEY: &str = "KeyT";
+
 // ============================================================================
 // STORE KEY ENUM - Type-safe access to settings.json keys
 // ============================================================================
@@ -40,6 +43,8 @@ pub enum StoreKey {
     HoldHotkey,
     /// Paste-last hotkey configuration
     PasteLastHotkey,
+    /// Translation hotkey configuration
+    TranslationHotkey,
     /// Selected microphone ID
     SelectedMicId,
     /// Sound enabled setting
@@ -66,6 +71,12 @@ pub enum StoreKey {
     DefaultProfileId,
     /// Auto-learned app mappings from user corrections
     LearnedAppMappings,
+    /// Whether translation mode is enabled
+    TranslationEnabled,
+    /// List of favorite target languages for translation
+    TranslationTargetLanguages,
+    /// Default translation target language
+    TranslationDefaultLanguage,
 }
 
 impl StoreKey {
@@ -75,6 +86,7 @@ impl StoreKey {
             Self::ToggleHotkey => "toggle_hotkey",
             Self::HoldHotkey => "hold_hotkey",
             Self::PasteLastHotkey => "paste_last_hotkey",
+            Self::TranslationHotkey => "translation_hotkey",
             Self::SelectedMicId => "selected_mic_id",
             Self::SoundEnabled => "sound_enabled",
             Self::CleanupPromptSections => "cleanup_prompt_sections",
@@ -88,6 +100,9 @@ impl StoreKey {
             Self::ContextDetectionEnabled => "context_detection_enabled",
             Self::DefaultProfileId => "default_profile_id",
             Self::LearnedAppMappings => "learned_app_mappings",
+            Self::TranslationEnabled => "translation_enabled",
+            Self::TranslationTargetLanguages => "translation_target_languages",
+            Self::TranslationDefaultLanguage => "translation_default_language",
         }
     }
 }
@@ -143,6 +158,11 @@ impl HotkeyConfig {
     /// Create default paste-last hotkey config
     pub fn default_paste_last() -> Self {
         Self::default_with_key(DEFAULT_PASTE_LAST_KEY)
+    }
+
+    /// Create default translation hotkey config
+    pub fn default_translation() -> Self {
+        Self::default_with_key(DEFAULT_TRANSLATION_KEY)
     }
 
     /// Convert to shortcut string format like "ctrl+alt+Space"
@@ -301,6 +321,7 @@ pub struct AppSettings {
     pub toggle_hotkey: HotkeyConfig,
     pub hold_hotkey: HotkeyConfig,
     pub paste_last_hotkey: HotkeyConfig,
+    pub translation_hotkey: HotkeyConfig,
     pub selected_mic_id: Option<String>,
     pub sound_enabled: bool,
     #[serde(default)]
@@ -310,6 +331,9 @@ pub struct AppSettings {
     pub auto_mute_audio: bool,
     pub stt_timeout_seconds: Option<f64>,
     pub server_url: String,
+    pub translation_enabled: bool,
+    pub translation_target_languages: Vec<String>,
+    pub translation_default_language: String,
 }
 
 impl Default for AppSettings {
@@ -318,6 +342,7 @@ impl Default for AppSettings {
             toggle_hotkey: HotkeyConfig::default_toggle(),
             hold_hotkey: HotkeyConfig::default_hold(),
             paste_last_hotkey: HotkeyConfig::default_paste_last(),
+            translation_hotkey: HotkeyConfig::default_translation(),
             selected_mic_id: None,
             sound_enabled: true,
             cleanup_prompt_sections: None,
@@ -326,6 +351,18 @@ impl Default for AppSettings {
             auto_mute_audio: false,
             stt_timeout_seconds: None,
             server_url: DEFAULT_SERVER_URL.to_string(),
+            translation_enabled: true,
+            translation_target_languages: vec![
+                "en".to_string(),
+                "zh".to_string(),
+                "es".to_string(),
+                "de".to_string(),
+                "fr".to_string(),
+                "ar".to_string(),
+                "ja".to_string(),
+                "ko".to_string(),
+            ],
+            translation_default_language: "en".to_string(),
         }
     }
 }
@@ -341,6 +378,7 @@ pub enum HotkeyType {
     Toggle,
     Hold,
     PasteLast,
+    Translation,
 }
 
 impl HotkeyType {
@@ -349,6 +387,7 @@ impl HotkeyType {
             Self::Toggle => StoreKey::ToggleHotkey,
             Self::Hold => StoreKey::HoldHotkey,
             Self::PasteLast => StoreKey::PasteLastHotkey,
+            Self::Translation => StoreKey::TranslationHotkey,
         }
     }
 
@@ -357,6 +396,7 @@ impl HotkeyType {
             Self::Toggle => "toggle",
             Self::Hold => "hold",
             Self::PasteLast => "paste last",
+            Self::Translation => "translation",
         }
     }
 
@@ -365,6 +405,7 @@ impl HotkeyType {
             Self::Toggle => HotkeyConfig::default_toggle(),
             Self::Hold => HotkeyConfig::default_hold(),
             Self::PasteLast => HotkeyConfig::default_paste_last(),
+            Self::Translation => HotkeyConfig::default_translation(),
         }
     }
 }
@@ -408,6 +449,7 @@ pub fn check_hotkey_conflict(
         (HotkeyType::Toggle, &settings.toggle_hotkey),
         (HotkeyType::Hold, &settings.hold_hotkey),
         (HotkeyType::PasteLast, &settings.paste_last_hotkey),
+        (HotkeyType::Translation, &settings.translation_hotkey),
     ];
 
     for (hotkey_type, existing) in hotkeys_to_check {

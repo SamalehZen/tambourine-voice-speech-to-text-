@@ -20,6 +20,7 @@ export const AppEvents = {
 	recordingStart: "recording-start",
 	recordingStop: "recording-stop",
 	prepareRecording: "prepare-recording",
+	translationTrigger: "translation-trigger",
 
 	// Rust → All: Config sync notifications
 	configResponse: "config-response",
@@ -101,6 +102,7 @@ export interface EventPayloads {
 	[AppEvents.recordingStart]: RecordingStartPayload;
 	[AppEvents.recordingStop]: undefined;
 	[AppEvents.prepareRecording]: undefined;
+	[AppEvents.translationTrigger]: undefined;
 	[AppEvents.configResponse]: ConfigResponse;
 	[AppEvents.requestDisconnect]: undefined;
 	[AppEvents.settingsChanged]: undefined;
