@@ -17,5 +17,5 @@ services:
       - key: AUTO_STT_PROVIDER
         value: google
       - key: AUTO_LLM_PROVIDER
-        value: google
+        value: gemini
     healthCheckPath: /health
