@@ -144,23 +144,24 @@ class ClientConnectionManager:
         """
         logger.info(f"Cleaning up old connection for client: {connection_info.client_uuid}")
 
-        # Close the WebRTC connection first to stop ICE/STUN activity
-        try:
-            await connection_info.connection.disconnect()
-        except Exception as error:
-            logger.warning(f"Error closing old connection: {error}")
-
-        # Give ICE/STUN tasks time to detect closure and stop retrying
-        await asyncio.sleep(0.5)
-
-        # Cancel the pipeline task - this will trigger remaining cleanup
+        # Cancel the pipeline task first to stop any pending operations
         if not connection_info.pipeline_task.done():
             connection_info.pipeline_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await connection_info.pipeline_task
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await asyncio.wait_for(connection_info.pipeline_task, timeout=2.0)
 
-        # Additional delay to ensure all async tasks have cleaned up
-        await asyncio.sleep(0.2)
+        # Close the WebRTC connection and underlying peer connection
+        try:
+            pc = getattr(connection_info.connection, '_pc', None)
+            if pc is not None:
+                await pc.close()
+            await connection_info.connection.disconnect()
+        except Exception as error:
+            logger.debug(f"Expected cleanup error (safe to ignore): {error}")
+
+        # Wait for ICE/STUN background tasks to timeout and stop
+        await asyncio.sleep(1.0)
+        
         logger.info(f"Cleanup complete for client: {connection_info.client_uuid}")
 
     def get_active_connection_count(self) -> int:
