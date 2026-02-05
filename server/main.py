@@ -501,12 +501,12 @@ async def webrtc_offer(
         )
 
     # Handle existing connection with same UUID (one client = one connection)
-    # 1. Synchronously remove old connection from tracking (frees UUID slot immediately)
-    # 2. Clean up old connection in background (non-blocking)
-    # This avoids the race condition where background cleanup accidentally kills new connection
+    # Wait for old connection cleanup to complete before starting new one
+    # This prevents ICE/STUN task conflicts between old and new connections
     old_connection = services.client_manager.take_existing_connection(client_uuid)
     if old_connection:
-        create_background_task(services.client_manager.cleanup_connection(old_connection))
+        logger.info(f"Cleaning up existing connection for client: {client_uuid}")
+        await services.client_manager.cleanup_connection(old_connection)
     logger.info(f"Client connecting with UUID: {client_uuid}")
 
     # Filter mDNS candidates from SDP to prevent aioice resolution issues.
